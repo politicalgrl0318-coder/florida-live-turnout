@@ -1,0 +1,7 @@
+{
+  "name": "florida-live-turnout-workspace",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix 305-DATA-GIRL-DASHBOARD run build"
+  }
+}
