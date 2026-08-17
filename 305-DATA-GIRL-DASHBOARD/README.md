@@ -106,3 +106,15 @@ The timeout defaults can be overridden for a controlled canary with `SITES_INSTA
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
 - [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+
+## Live statewide election results
+
+The public `/live-results` dashboard reads normalized statewide and federal contest results from `/api/election-results`. The Worker refreshes the official source on the configured interval and serves the last verified in-memory snapshot with a `stale` status if a later upstream request fails. It intentionally shows a waiting state when no feed is configured or statewide contests have not yet been published; the repository does not include sample vote totals or an invented feed URL.
+
+Configure these Cloudflare Worker variables before election night:
+
+- `ELECTION_WATCH_RESULTS_URL` (**required for live data**): the HTTPS URL of the official, machine-readable Florida Election Watch JSON results feed. Do not set this to an HTML page.
+- `ELECTION_WATCH_PUBLIC_URL` (recommended): the HTTPS public-facing Florida Election Watch page linked from the dashboard as the official source.
+- `RESULTS_REFRESH_SECONDS`: upstream refresh and cache interval in seconds. Both Wrangler configurations default this to `30`.
+
+Set environment-specific URLs with `wrangler secret put` or in the Cloudflare dashboard rather than committing an unverified endpoint. The Worker rejects non-HTTPS feed URLs and upstream bodies larger than 2 MB.

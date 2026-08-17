@@ -9,5 +9,8 @@
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
+  },
+  "vars": {
+    "RESULTS_REFRESH_SECONDS": "30"
   }
 }
