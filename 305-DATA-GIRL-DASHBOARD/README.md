@@ -100,6 +100,24 @@ actions tied to the current ChatGPT user. Leave public content anonymous.
 
 Use build and validation commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
 
+## Live statewide election results
+
+The `/live-results` page reads the normalized JSON endpoint at
+`/api/election-results` and refreshes every 30 seconds. Configure these
+Cloudflare Worker variables before election-night deployment:
+
+- `ELECTION_WATCH_RESULTS_URL`: HTTPS URL of the official Florida Election
+  Watch JSON feed. Do not point this at the human-facing HTML page.
+- `ELECTION_WATCH_PUBLIC_URL`: Optional public source link shown to readers.
+- `RESULTS_REFRESH_SECONDS`: Server cache interval from 15 to 300 seconds;
+  the deployed default is 30.
+
+The Worker validates and normalizes the upstream payload, limits responses to
+2 MB, and retains the last verified snapshot when the official source is
+temporarily unavailable. Until the JSON feed URL is configured or the state
+begins reporting, the page shows an explicit waiting state instead of sample
+results.
+
 The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
 
 ## Learn More
