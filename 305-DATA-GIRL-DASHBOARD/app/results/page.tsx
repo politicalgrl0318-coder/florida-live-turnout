@@ -2,7 +2,60 @@
 import { useMemo, useState } from "react";
 type CountyResult={name:string;url:string|null};
 const names=`Alachua|Baker|Bay|Bradford|Brevard|Broward|Calhoun|Charlotte|Citrus|Clay|Collier|Columbia|DeSoto|Dixie|Duval|Escambia|Flagler|Franklin|Gadsden|Gilchrist|Glades|Gulf|Hamilton|Hardee|Hendry|Hernando|Highlands|Hillsborough|Holmes|Indian River|Jackson|Jefferson|Lafayette|Lake|Lee|Leon|Levy|Liberty|Madison|Manatee|Marion|Martin|Miami-Dade|Monroe|Nassau|Okaloosa|Okeechobee|Orange|Osceola|Palm Beach|Pasco|Pinellas|Polk|Putnam|Santa Rosa|Sarasota|Seminole|St. Johns|St. Lucie|Sumter|Suwannee|Taylor|Union|Volusia|Wakulla|Walton|Washington`.split("|");
-const links:Record<string,string>={
-Alachua:"https://www.votealachua.gov/Elections/Election-Results",Baker:"https://www.bakerelections.com/Election-Results",Bay:"https://www.bayvotes.org/Election-Results",Bradford:"https://www.bradfordelections.com/Election-Results",Brevard:"https://www.votebrevard.gov/Election-Information/Election-Results",Broward:"https://www.browardvotes.gov/Election-Results",Charlotte:"https://www.soecharlottecountyfl.gov/Election-Information/Election-Results",Citrus:"https://www.votecitrus.gov/Election-Results",Clay:"https://www.clayelections.gov/Election-Results",Collier:"https://www.colliervotes.gov/Election-Results",Columbia:"https://www.votecolumbiafl.gov/Election-Results",Duval:"https://www.duvalelections.gov/Election-Results",Escambia:"https://escambiavotes.gov/election-results",Flagler:"https://www.flaglerelections.gov/Election-Info/Election-Results",Gadsden:"https://www.gadsdensoe.com/Election-Results",Hendry:"https://www.hendryelections.gov/Election-Results",Hernando:"https://www.hernandovotes.gov/Election-Results",Highlands:"https://www.votehighlands.com/Election-Results",Hillsborough:"https://www.votehillsborough.gov/ELECTIONS/Election-Results","Indian River":"https://www.voteindianriver.gov/Election-Results",Lake:"https://www.lakevotes.gov/Election-Information/Election-Results",Lee:"https://www.lee.vote/Election-Results",Leon:"https://www.leonvotes.gov/Election-Information/Past-Election-Results",Manatee:"https://www.votemanatee.gov/Elections/Election-Results",Marion:"https://www.votemarion.gov/Election-Results",Martin:"https://www.martinvotes.gov/election-information/election-results","Miami-Dade":"https://www.miamidade.gov/global/service.page?Mduid_service=ser151187731708822",Monroe:"https://www.keys-elections.org/Election-Data/Election-Results",Nassau:"https://www.votenassaufl.gov/election-results",Okaloosa:"https://www.voteokaloosa.gov/Election-Results",Okeechobee:"https://www.voteokeechobee.com/Election-Results",Orange:"https://www.ocfelections.com/election-results",Osceola:"https://www.voteosceola.gov/en-us/Elections/Election-Results","Palm Beach":"https://www.votepalmbeach.gov/Records/Election-Results",Pasco:"https://www.pascovotes.gov/Election-Results",Pinellas:"https://www.votepinellas.gov/Election-Results",Polk:"https://www.polkelections.com/Election-Results","Santa Rosa":"https://www.votesantarosa.gov/Election-Results",Sarasota:"https://www.sarasotavotes.gov/Election-Results",Seminole:"https://www.voteseminole.gov/election-results","St. Johns":"https://www.votesjc.gov/election-information/election-results","St. Lucie":"https://www.slcelections.com/ELECTION-INFORMATION/Election-Results",Sumter:"https://www.sumterelections.org/Election-Results",Volusia:"https://www.volusiaelections.gov/elections/election-results.stml",Walton:"https://www.votewalton.gov/Elections/Election-Results"};
-const countyResults:CountyResult[]=names.map(name=>({name,url:links[name]||null}));
-export default function ResultsPage(){const[query,setQuery]=useState("");const counties=useMemo(()=>countyResults.filter(c=>c.name.toLowerCase().includes(query.trim().toLowerCase())),[query]);const linked=countyResults.filter(c=>c.url).length;return <main className="results-page"><header className="results-hero"><nav aria-label="Main navigation"><a href="/">Turnout dashboard</a><a href="/landscape">County landscape</a><a className="active" href="/results" aria-current="page">Official results</a></nav><div className="results-brand"><span>305</span> Data Girl</div><p className="results-kicker">FLORIDA ELECTION DIRECTORY</p><h1>Official election results.<br/><em>Every Florida county.</em></h1><p className="results-intro">Go straight to the government source for vote totals and race outcomes across Florida’s 67 counties.</p></header><section className="results-content"><article className="statewide-card"><div><span className="official-pill">OFFICIAL STATEWIDE SOURCE</span><h2>Federal, statewide &amp; multicounty races</h2><p>Florida Election Watch publishes results reported to the Florida Department of State. Use it for contests that cross county lines.</p></div><a href="https://floridaelectionwatch.gov/" target="_blank" rel="noreferrer">Open Florida Election Watch <span>↗</span></a></article><aside className="results-explainer"><b>Results are not turnout.</b><p>This dashboard’s turnout tracking counts when and how ballots are cast; it does not show votes for candidates or determine winners. The official links below publish election-night and certified race results. Results may remain unofficial until canvassing and certification are complete.</p></aside><div className="county-directory-head"><div><p className="results-kicker">COUNTY-BY-COUNTY</p><h2>Find your county’s results</h2><span>{linked} direct results pages · {67-linked} counties without a direct link</span></div><label><span>Search counties</span><input aria-label="Search counties" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Start typing a county…"/></label></div><div className="county-result-grid">{counties.map(c=><article key={c.name} className={!c.url?"unavailable":""}><div><span className="county-mark">{c.name.slice(0,2).toUpperCase()}</span><div><h3>{c.name} County</h3><p>Supervisor of Elections</p></div></div>{c.url?<a href={c.url} target="_blank" rel="noreferrer" aria-label={`Open official ${c.name} County election results`}>Official results <span>↗</span></a>:<span className="no-direct">Direct results link unavailable</span>}</article>)}</div>{!counties.length&&<p className="no-counties">No counties match “{query}.”</p>}<p className="directory-note"><b>Link note:</b> County election websites can change their election-specific addresses. “Direct link unavailable” means we could not provide a stable results-page link; consult that county’s Supervisor of Elections website. Links open official government election resources in a new tab.</p></section></main>}
+const augustPrimaryLinks: Partial<Record<string, string>> = {
+  Alachua: "https://enr.electionsfl.org/ALA/4023/Summary/",
+  Bay: "https://enr.electionsfl.org/BAY/4001/Summary/",
+  Bradford: "https://enr.electionsfl.org/BRA/4017/Summary/",
+  Calhoun: "https://enr.electionsfl.org/CAL/3984/Summary/",
+  Charlotte: "https://enr.electionsfl.org/CHA/4016/Summary/",
+  Citrus: "https://enr.electionsfl.org/CIT/3991/Summary/",
+  Clay: "https://enr.electionsfl.org/CLA/3990/Summary/",
+  Collier: "https://enr.electionsfl.org/CLL/4039/Summary/",
+  Columbia: "https://enr.electionsfl.org/CLM/4020/Summary/",
+  DeSoto: "https://enr.electionsfl.org/DES/3997/Summary/",
+  Dixie: "https://enr.electionsfl.org/DIX/3988/Summary/",
+  Duval: "https://enr.electionsfl.org/DUV/4003/Summary/",
+  Flagler: "https://enr.electionsfl.org/FLA/4029/Summary/",
+  Franklin: "https://enr.electionsfl.org/FRA/4028/Summary/",
+  Gadsden: "https://enr.electionsfl.org/GAD/4009/Summary/",
+  Gilchrist: "https://enr.electionsfl.org/GIL/3987/Summary/",
+  Glades: "https://enr.electionsfl.org/GLA/3978/Summary/",
+  Hamilton: "https://enr.electionsfl.org/HAM/4019/Summary/",
+  Hardee: "https://enr.electionsfl.org/HAR/3946/Summary/",
+  Hendry: "https://enr.electionsfl.org/HEN/3983/Summary/",
+  Hernando: "https://enr.electionsfl.org/HER/4046/Summary/",
+  Hillsborough: "https://enr.electionsfl.org/HIL/4002/Summary/",
+  Holmes: "https://enr.electionsfl.org/HOL/4040/Summary/",
+  "Indian River": "https://enr.electionsfl.org/IND/4032/Summary/",
+  Jackson: "https://enr.electionsfl.org/JAC/4048/Summary/",
+  Lake: "https://enr.electionsfl.org/LAK/3996/Summary/",
+  Leon: "https://enr.electionsfl.org/LEO/3994/Summary/",
+  Levy: "https://enr.electionsfl.org/LEV/3992/Summary/",
+  Liberty: "https://enr.electionsfl.org/LIB/4049/Summary/",
+  Madison: "https://enr.electionsfl.org/MAD/4008/Summary/",
+  Manatee: "https://enr.electionsfl.org/MAN/4031/Summary/",
+  Marion: "https://enr.electionsfl.org/MRN/4007/Summary/",
+  Martin:
+    "https://results.enr.clarityelections.com/FL/Martin/126768/web.345435/#/summary",
+  "Miami-Dade": "https://enr.electionsfl.org/DAD/4010/Summary/",
+  Monroe: "https://enr.electionsfl.org/MON/4006/Summary/",
+  Nassau: "https://enr.electionsfl.org/NAS/4021/Summary/",
+  Okeechobee: "https://enr.electionsfl.org/OKE/3907/Summary/",
+  Pasco: "https://enr.electionsfl.org/PAS/4045/Summary/",
+  Polk: "https://enr.electionsfl.org/POL/3999/Summary/",
+  Putnam: "https://enr.electionsfl.org/PUT/4013/Summary/",
+  "Santa Rosa": "https://enr.electionsfl.org/SAN/4036/Summary/",
+  Sarasota: "https://enr.electionsfl.org/SAR/4038/Summary/",
+  Seminole:
+    "https://www.livevoterturnout.com/ENR/semflenr/21/en/Index_21.html",
+  "St. Johns": "https://enr.electionsfl.org/STJ/4011/Summary/",
+  "St. Lucie": "https://enr.electionsfl.org/STL/4030/Summary/",
+  Sumter: "https://enr.electionsfl.org/SUM/3989/Summary/",
+  Taylor: "https://enr.electionsfl.org/TAY/4018/Summary/",
+  Union: "https://enr.electionsfl.org/UNI/3981/Summary/",
+  Volusia: "https://enr.electionsfl.org/VOL/4004/Summary/",
+  Wakulla: "https://enr.electionsfl.org/WAK/3962/Summary/",
+  Walton: "https://enr.electionsfl.org/WAL/4027/Summary/",
+};
+const countyResults:CountyResult[]=names.map(name=>({name,url:augustPrimaryLinks[name]||null}));
+export default function ResultsPage(){const[query,setQuery]=useState("");const counties=useMemo(()=>countyResults.filter(c=>c.name.toLowerCase().includes(query.trim().toLowerCase())),[query]);const linked=countyResults.filter(c=>c.url).length;return <main className="results-page"><header className="results-hero"><nav aria-label="Main navigation"><a href="/">Turnout dashboard</a><a href="/landscape">County landscape</a><a className="active" href="/results" aria-current="page">Official results</a></nav><div className="results-brand"><span>305</span> Data Girl</div><p className="results-kicker">FLORIDA ELECTION DIRECTORY</p><h1>Florida August 2026 Primary Election Results</h1><p className="results-intro">Go straight to the government source for vote totals and race outcomes across Florida’s 67 counties.</p></header><section className="results-content"><article className="statewide-card"><div><span className="official-pill">OFFICIAL STATEWIDE SOURCE</span><h2>Federal, statewide &amp; multicounty races</h2><p>Florida Election Watch publishes results reported to the Florida Department of State. Use it for contests that cross county lines.</p></div><a href="https://floridaelectionwatch.gov/" target="_blank" rel="noreferrer">Open Florida Election Watch <span>↗</span></a></article><aside className="results-explainer">Results are unofficial until canvassing and certification are complete</aside><div className="county-directory-head"><div><p className="results-kicker">COUNTY-BY-COUNTY</p><h2>Find your county’s results</h2><span>{linked} direct results pages · {67-linked} pending counties</span></div><label><span>Search counties</span><input aria-label="Search counties" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Start typing a county…"/></label></div><div className="county-result-grid">{counties.map(c=><article key={c.name} className={!c.url?"unavailable":""}><div><span className="county-mark">{c.name.slice(0,2).toUpperCase()}</span><div><h3>{c.name} County</h3><p>Supervisor of Elections</p></div></div>{c.url?<a href={c.url} target="_blank" rel="noreferrer" aria-label={`Open official ${c.name} County election results`}>Official results <span>↗</span></a>:<span className="no-direct">Pending</span>}</article>)}</div>{!counties.length&&<p className="no-counties">No counties match “{query}.”</p>}<p className="directory-note"><b>Link note:</b> County election websites can change their election-specific addresses. “Direct link unavailable” means we could not provide a stable results-page link; consult that county’s Supervisor of Elections website. Links open official government election resources in a new tab.</p></section></main>}
