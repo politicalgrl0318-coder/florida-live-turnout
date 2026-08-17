@@ -1,7 +1,7 @@
 {
-  "name": "florida-live-turnout-workspace",
+  "name": "florida-live-turnout-root",
   "private": true,
   "scripts": {
-    "build": "npm --prefix 305-DATA-GIRL-DASHBOARD run install:ci && npm --prefix 305-DATA-GIRL-DASHBOARD run build"
+    "build": "npm --prefix 305-DATA-GIRL-DASHBOARD ci && npm --prefix 305-DATA-GIRL-DASHBOARD run build"
   }
 }
