@@ -85,7 +85,7 @@ export default function LiveResultsPage() {
       <nav aria-label="Main navigation"><Link href="/">Turnout dashboard</Link><Link href="/results">County results</Link><Link className="active" href="/live-results" aria-current="page">Live statewide results</Link></nav>
       <div className="live-results-brand"><b>305</b> Data Girl</div>
       <p className="live-results-kicker"><span className={status === "live" ? "pulse" : ""} /> FLORIDA ELECTION WATCH</p>
-      <h1>Florida statewide<br/><em>election results</em></h1>
+      <h1>Florida August 2026 Primary<br/><span>Statewide </span><em>Election Results</em></h1>
       <p className="live-results-intro">Federal and statewide contests, reported directly from Florida’s official machine-readable results feed.</p>
       <div className="live-results-status">
         <span className={`status-badge status-${status ?? "loading"}`}>{status === "live" ? "Live official feed" : status === "stale" ? "Last verified results" : status === "waiting" ? "Waiting for results" : status === "error" ? "Feed unavailable" : "Connecting"}</span>
