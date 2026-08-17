@@ -1,0 +1,13 @@
+{
+  "$schema": "./305-DATA-GIRL-DASHBOARD/node_modules/wrangler/config-schema.json",
+  "name": "florida-live-turnout",
+  "main": "./305-DATA-GIRL-DASHBOARD/dist/server/index.js",
+  "compatibility_date": "2026-08-13",
+  "assets": {
+    "directory": "./305-DATA-GIRL-DASHBOARD/dist/client"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
