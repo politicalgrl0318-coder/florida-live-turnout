@@ -3,6 +3,7 @@
   "name": "florida-live-turnout",
   "main": "./305-DATA-GIRL-DASHBOARD/dist/server/index.js",
   "compatibility_date": "2026-08-13",
+  "compatibility_flags": ["global_fetch_strictly_public"],
   "assets": {
     "directory": "./305-DATA-GIRL-DASHBOARD/dist/client"
   },
