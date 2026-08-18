@@ -10,7 +10,7 @@ const rating=(c:County)=>{const two=c.dem+c.rep||1,m=(c.dem-c.rep)/two*100,a=Mat
 
 export default function Landscape(){
  const[data,setData]=useState<Payload|null>(null),[prior,setPrior]=useState<County[]>([]),[metric,setMetric]=useState<Metric>("rating"),[query,setQuery]=useState("");
- async function refresh(){const r=await fetch(`/api/turnout?t=${Date.now()}`,{cache:"no-store"});const next=await r.json() as Payload;const saved=localStorage.getItem("305-landscape-snapshot");if(saved){try{setPrior((JSON.parse(saved) as Payload).counties||[])}catch{}}setData(next);localStorage.setItem("305-landscape-snapshot",JSON.stringify(next))}
+ async function refresh(){const stamp=Date.now();const responses=await Promise.all(Array.from({length:5},(_,batch)=>fetch(`/api/turnout?batch=${batch}&t=${stamp}`,{cache:"no-store"})));if(responses.some(r=>!r.ok))throw new Error("The official county feeds did not respond.");const payloads=await Promise.all(responses.map(async r=>await r.json() as Payload));const next:Payload={generatedAt:payloads.map(p=>p.generatedAt).sort().at(-1)||new Date().toISOString(),counties:payloads.flatMap(p=>p.counties)};const saved=localStorage.getItem("305-landscape-snapshot");if(saved){try{setPrior((JSON.parse(saved) as Payload).counties||[])}catch{}}setData(next);localStorage.setItem("305-landscape-snapshot",JSON.stringify(next))}
  useEffect(()=>{refresh();const t=setInterval(refresh,300000);return()=>clearInterval(t)},[]);
  const rows=data?.counties.filter(c=>c.status==="live")||[];
  const totals=rows.reduce((a,c)=>({ballots:a.ballots+c.ballots,dem:a.dem+c.dem,rep:a.rep+c.rep,other:a.other+c.npa+c.other}),{ballots:0,dem:0,rep:0,other:0});
