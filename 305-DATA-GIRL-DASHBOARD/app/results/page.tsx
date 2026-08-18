@@ -1,7 +1,16 @@
 "use client";
+
 import { useMemo, useState } from "react";
-type CountyResult={name:string;url:string;isDirect:boolean};
-const names=`Alachua|Baker|Bay|Bradford|Brevard|Broward|Calhoun|Charlotte|Citrus|Clay|Collier|Columbia|DeSoto|Dixie|Duval|Escambia|Flagler|Franklin|Gadsden|Gilchrist|Glades|Gulf|Hamilton|Hardee|Hendry|Hernando|Highlands|Hillsborough|Holmes|Indian River|Jackson|Jefferson|Lafayette|Lake|Lee|Leon|Levy|Liberty|Madison|Manatee|Marion|Martin|Miami-Dade|Monroe|Nassau|Okaloosa|Okeechobee|Orange|Osceola|Palm Beach|Pasco|Pinellas|Polk|Putnam|Santa Rosa|Sarasota|Seminole|St. Johns|St. Lucie|Sumter|Suwannee|Taylor|Union|Volusia|Wakulla|Walton|Washington`.split("|");
+import styles from "./results-wall.module.css";
+
+type CountyResult = {
+  name: string;
+  url: string;
+  isDirect: boolean;
+};
+
+const names = `Alachua|Baker|Bay|Bradford|Brevard|Broward|Calhoun|Charlotte|Citrus|Clay|Collier|Columbia|DeSoto|Dixie|Duval|Escambia|Flagler|Franklin|Gadsden|Gilchrist|Glades|Gulf|Hamilton|Hardee|Hendry|Hernando|Highlands|Hillsborough|Holmes|Indian River|Jackson|Jefferson|Lafayette|Lake|Lee|Leon|Levy|Liberty|Madison|Manatee|Marion|Martin|Miami-Dade|Monroe|Nassau|Okaloosa|Okeechobee|Orange|Osceola|Palm Beach|Pasco|Pinellas|Polk|Putnam|Santa Rosa|Sarasota|Seminole|St. Johns|St. Lucie|Sumter|Suwannee|Taylor|Union|Volusia|Wakulla|Walton|Washington`.split("|");
+
 const augustPrimaryLinks: Partial<Record<string, string>> = {
   Alachua: "https://enr.electionsfl.org/ALA/4023/Summary/",
   Bay: "https://enr.electionsfl.org/BAY/4001/Summary/",
@@ -35,8 +44,7 @@ const augustPrimaryLinks: Partial<Record<string, string>> = {
   Madison: "https://enr.electionsfl.org/MAD/4008/Summary/",
   Manatee: "https://enr.electionsfl.org/MAN/4031/Summary/",
   Marion: "https://enr.electionsfl.org/MRN/4007/Summary/",
-  Martin:
-    "https://results.enr.clarityelections.com/FL/Martin/126768/web.345435/#/summary",
+  Martin: "https://results.enr.clarityelections.com/FL/Martin/126768/web.345435/#/summary",
   "Miami-Dade": "https://enr.electionsfl.org/DAD/4010/Summary/",
   Monroe: "https://enr.electionsfl.org/MON/4006/Summary/",
   Nassau: "https://enr.electionsfl.org/NAS/4021/Summary/",
@@ -46,8 +54,7 @@ const augustPrimaryLinks: Partial<Record<string, string>> = {
   Putnam: "https://enr.electionsfl.org/PUT/4013/Summary/",
   "Santa Rosa": "https://enr.electionsfl.org/SAN/4036/Summary/",
   Sarasota: "https://enr.electionsfl.org/SAR/4038/Summary/",
-  Seminole:
-    "https://www.livevoterturnout.com/ENR/semflenr/21/en/Index_21.html",
+  Seminole: "https://www.livevoterturnout.com/ENR/semflenr/21/en/Index_21.html",
   "St. Johns": "https://enr.electionsfl.org/STJ/4011/Summary/",
   "St. Lucie": "https://enr.electionsfl.org/STL/4030/Summary/",
   Sumter: "https://enr.electionsfl.org/SUM/3989/Summary/",
@@ -57,10 +64,123 @@ const augustPrimaryLinks: Partial<Record<string, string>> = {
   Wakulla: "https://enr.electionsfl.org/WAK/3962/Summary/",
   Walton: "https://enr.electionsfl.org/WAL/4027/Summary/",
 };
-const electionWatchUrl="https://floridaelectionwatch.gov/";
-const countyResults:CountyResult[]=names.map(name=>({
+
+const electionWatchUrl = "https://floridaelectionwatch.gov/";
+
+const countyResults: CountyResult[] = names.map((name) => ({
   name,
-  url:augustPrimaryLinks[name]||electionWatchUrl,
-  isDirect:Boolean(augustPrimaryLinks[name]),
+  url: augustPrimaryLinks[name] || electionWatchUrl,
+  isDirect: Boolean(augustPrimaryLinks[name]),
 }));
-export default function ResultsPage(){const[query,setQuery]=useState("");const counties=useMemo(()=>countyResults.filter(c=>c.name.toLowerCase().includes(query.trim().toLowerCase())),[query]);const linked=countyResults.filter(c=>c.isDirect).length;return <main className="results-page"><header className="results-hero"><nav aria-label="Main navigation"><a href="/">Turnout dashboard</a><a href="/landscape">County landscape</a><a className="active" href="/results" aria-current="page">County results</a><a href="/live-results">Live statewide results</a></nav><div className="results-brand"><span>305</span> Data Girl</div><p className="results-kicker">FLORIDA ELECTION DIRECTORY</p><h1>Florida August 2026 Primary Election Results</h1><p className="results-intro">Go straight to the government source for vote totals and race outcomes across Florida’s 67 counties.</p></header><section className="results-content"><article className="statewide-card"><div><span className="official-pill">OFFICIAL STATEWIDE SOURCE</span><h2>Federal, statewide &amp; multicounty races</h2><p>Florida Election Watch publishes results reported to the Florida Department of State. Use it for contests that cross county lines.</p></div><a href={electionWatchUrl} target="_blank" rel="noreferrer">Open Florida Election Watch <span>↗</span></a></article><aside className="results-explainer">Results are unofficial until canvassing and certification are complete</aside><div className="county-directory-head"><div><p className="results-kicker">COUNTY-BY-COUNTY</p><h2>Find your county’s results</h2><span>{linked} direct county pages · {67-linked} Florida Election Watch fallbacks</span></div><label><span>Search counties</span><input aria-label="Search counties" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Start typing a county…"/></label></div><div className="county-result-grid">{counties.map(c=><article key={c.name} className={!c.isDirect?"fallback":""}><div><span className="county-mark">{c.name.slice(0,2).toUpperCase()}</span><div><h3>{c.name} County</h3><p>{c.isDirect?"Supervisor of Elections":"Official state reporting"}</p></div></div><a href={c.url} target="_blank" rel="noreferrer" aria-label={c.isDirect?`Open official ${c.name} County election results`:`Open ${c.name} County results on Florida Election Watch`}>{c.isDirect?"Official results":"Florida Election Watch"} <span>↗</span></a></article>)}</div>{!counties.length&&<p className="no-counties">No counties match “{query}.”</p>}<p className="directory-note"><b>Link note:</b> The directory uses a verified county results page where available. Counties without a stable election-specific link open Florida Election Watch, the official statewide reporting system. Links open official government election resources in a new tab.</p></section></main>}
+
+const slugify = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+export default function ResultsPage() {
+  const [query, setQuery] = useState("");
+  const counties = useMemo(
+    () => countyResults.filter((county) => county.name.toLowerCase().includes(query.trim().toLowerCase())),
+    [query],
+  );
+  const linked = countyResults.filter((county) => county.isDirect).length;
+
+  return (
+    <main className="results-page">
+      <header className="results-hero">
+        <nav aria-label="Main navigation">
+          <a href="/">Turnout dashboard</a>
+          <a href="/landscape">County landscape</a>
+          <a className="active" href="/results" aria-current="page">County results</a>
+          <a href="/live-results">Live statewide results</a>
+        </nav>
+        <div className="results-brand"><span>305</span> Data Girl</div>
+        <p className="results-kicker">ALL 67 COUNTIES · ONE PAGE</p>
+        <h1>Florida August 2026 Primary Election Results</h1>
+        <p className="results-intro">
+          Scroll Florida county by county without leaving 305 Data Girl. Every county has its own live results frame and a direct link back to the official election source.
+        </p>
+      </header>
+
+      <section className="results-content">
+        <article className="statewide-card">
+          <div>
+            <span className="official-pill">OFFICIAL STATEWIDE SOURCE</span>
+            <h2>Federal, statewide &amp; multicounty races</h2>
+            <p>Florida Election Watch publishes results reported to the Florida Department of State. Use it for contests that cross county lines.</p>
+          </div>
+          <a href={electionWatchUrl} target="_blank" rel="noreferrer">Open Florida Election Watch <span>↗</span></a>
+        </article>
+
+        <aside className="results-explainer">
+          Results are unofficial until canvassing and certification are complete
+        </aside>
+
+        <div className="county-directory-head">
+          <div>
+            <p className="results-kicker">LIVE COUNTY RESULTS WALL</p>
+            <h2>All 67 counties, right here</h2>
+            <span>{linked} direct county result pages · {67 - linked} Florida Election Watch fallbacks</span>
+          </div>
+          <label>
+            <span>Filter counties</span>
+            <input
+              aria-label="Filter counties"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Start typing a county…"
+            />
+          </label>
+        </div>
+
+        <div className={styles.wall}>
+          {counties.map((county) => (
+            <article key={county.name} id={slugify(county.name)} className={styles.countyFrame}>
+              <div className={styles.frameHeader}>
+                <div className={styles.countyIdentity}>
+                  <span className="county-mark">{county.name.slice(0, 2).toUpperCase()}</span>
+                  <div>
+                    <h3>{county.name} County</h3>
+                    <p>{county.isDirect ? "Official county election results" : "Official statewide reporting fallback"}</p>
+                  </div>
+                </div>
+                <div className={styles.frameActions}>
+                  <span className={county.isDirect ? styles.directBadge : styles.fallbackBadge}>
+                    {county.isDirect ? "COUNTY SOURCE" : "STATE FALLBACK"}
+                  </span>
+                  <a
+                    href={county.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Open official ${county.name} County election results in a new tab`}
+                  >
+                    Open official results <span>↗</span>
+                  </a>
+                </div>
+              </div>
+
+              <div className={styles.embedShell}>
+                <iframe
+                  src={county.url}
+                  title={`${county.name} County 2026 primary election results`}
+                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              </div>
+
+              <div className={styles.frameFooter}>
+                <span>Live official election source</span>
+                <span>If the county blocks embedded viewing, use “Open official results” above.</span>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {!counties.length && <p className="no-counties">No counties match “{query}.”</p>}
+
+        <p className="directory-note">
+          <b>Source note:</b> 305 Data Girl embeds verified county election-result pages where a stable county-specific source is available. Counties without a stable election-specific URL use Florida Election Watch as the official fallback. External election vendors control whether their pages allow embedded viewing; every county card also includes a direct official-source link.
+        </p>
+      </section>
+    </main>
+  );
+}

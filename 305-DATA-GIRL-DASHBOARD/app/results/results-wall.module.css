@@ -1,0 +1,156 @@
+.wall {
+  display: grid;
+  gap: 22px;
+}
+
+.countyFrame {
+  scroll-margin-top: 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 8px 28px #071c3110;
+}
+
+.frameHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
+}
+
+.countyIdentity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.countyIdentity h3 {
+  margin: 0 0 4px;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.countyIdentity p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.frameActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.frameActions > span {
+  padding: 6px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+}
+
+.directBadge {
+  background: #dff8f3;
+  color: #087766;
+}
+
+.fallbackBadge {
+  background: #fff2cf;
+  color: #795a0a;
+}
+
+.frameActions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 13px;
+  border-radius: 9px;
+  background: var(--navy);
+  color: white;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.frameActions a:hover {
+  background: #0d3357;
+}
+
+.embedShell {
+  position: relative;
+  height: 640px;
+  background: #eef3f6;
+}
+
+.embedShell iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: white;
+}
+
+.frameFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: #f8fafb;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.frameFooter span:first-child {
+  color: #12745f;
+  font-weight: 900;
+}
+
+@media (max-width: 760px) {
+  .frameHeader {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .frameActions {
+    justify-content: space-between;
+  }
+
+  .frameActions a {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .embedShell {
+    height: 560px;
+  }
+
+  .frameFooter {
+    flex-direction: column;
+    gap: 3px;
+  }
+}
+
+@media (max-width: 480px) {
+  .frameActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .frameActions > span {
+    align-self: flex-start;
+  }
+
+  .embedShell {
+    height: 520px;
+  }
+}
