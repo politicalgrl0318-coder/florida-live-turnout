@@ -11,6 +11,7 @@ const base = "https://s3.us-east-1.amazonaws.com/turnoutquickview.electionsfl.or
 const source = (code: string) => `https://tqv.vrswebapps.com/?state=FL&county=${code.toLowerCase()}`;
 const sum = (obj: Record<string, number> | undefined) => Object.values(obj || {}).reduce((a,b)=>a+(Number(b)||0),0);
 const emptyMethodParty = () => ({dem:0,rep:0,npa:0,other:0});
+const BATCH_SIZE = 15;
 
 async function browardCounty(){
   const sourceUrl = "https://updates.electionlink.net/widgets/browardfl/2026-08-18/VoteTypeByLocationTable.html";
@@ -79,8 +80,14 @@ async function county(code:string,name:string){
   }
 }
 
-export async function GET(){
-  const rows=await Promise.all(Object.entries(counties).map(([c,n])=>c==="BRO"?browardCounty().catch(()=>county(c,n)):county(c,n)));
+export async function GET(request:Request){
+  const url=new URL(request.url);
+  const requestedBatch=Number(url.searchParams.get("batch")||0);
+  const batch=Number.isFinite(requestedBatch)&&requestedBatch>=0?Math.floor(requestedBatch):0;
+  const entries=Object.entries(counties);
+  const totalBatches=Math.ceil(entries.length/BATCH_SIZE);
+  const selected=entries.slice(batch*BATCH_SIZE,(batch+1)*BATCH_SIZE);
+  const rows=await Promise.all(selected.map(([c,n])=>c==="BRO"?browardCounty().catch(()=>county(c,n)):county(c,n)));
   const first=rows.find(r=>r.status==="live");
-  return NextResponse.json({generatedAt:new Date().toISOString(),electionName:first?.electionName||"2026 Primary Election",electionDate:first?.electionDate||"08/18/2026",counties:rows},{headers:{"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","CDN-Cache-Control":"no-store","Cloudflare-CDN-Cache-Control":"no-store","Pragma":"no-cache","Expires":"0"}});
+  return NextResponse.json({generatedAt:new Date().toISOString(),electionName:first?.electionName||"2026 Primary Election",electionDate:first?.electionDate||"08/18/2026",batch,totalBatches,counties:rows},{headers:{"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","CDN-Cache-Control":"no-store","Cloudflare-CDN-Cache-Control":"no-store","Pragma":"no-cache","Expires":"0"}});
 }
