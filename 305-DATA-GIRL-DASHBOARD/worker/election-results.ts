@@ -37,6 +37,16 @@ const DEFAULT_VOTES_URL =
   "https://flelectionfiles.floridados.gov/enightfilespublic/20260818_ElecResultsFL_PipeDlm_Votes.txt";
 const DEFAULT_PUBLIC_URL =
   "https://floridaelectionwatch.gov/";
+const DEFAULT_RESULTS_PAGES = [
+  "https://floridaelectionwatch.gov/FederalOffices/USSenator",
+  "https://floridaelectionwatch.gov/FederalOffices/USRepresentative",
+  "https://floridaelectionwatch.gov/StateOffices/Governor",
+  "https://floridaelectionwatch.gov/StateOffices/ChiefFinancialOfficer",
+  "https://floridaelectionwatch.gov/StateOffices/CommissionerOfAgriculture",
+  "https://floridaelectionwatch.gov/DistrictOffices/StateSenator",
+  "https://floridaelectionwatch.gov/DistrictOffices/StateRepresentative",
+  "https://floridaelectionwatch.gov/JudicialOffices/CircuitCourt",
+];
 const MAX_FEED_BYTES = 12 * 1024 * 1024;
 
 let cached: Snapshot | null = null;
@@ -88,6 +98,83 @@ function partyFromElectionType(value: string): string | null {
 
 function shouldDisplayRace(name: string): boolean {
   return /(u\.?s\.? senator|united states senator|u\.?s\.? representative|united states representative|governor|attorney general|chief financial officer|commissioner of agriculture|state senator|state representative|circuit judge|district court of appeal|public service commission)/i.test(name);
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#x27;|&#39;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseResultsPage(html: string): ContestResult[] {
+  const contests: ContestResult[] = [];
+  const contestPattern = /<div[^>]*class="[^"]*titleDescription[^"]*"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<strong>\s*([^<]+?)\s*<\/strong>[\s\S]*?\/ContestResultsByCounty\/(\d+)[\s\S]*?<table[^>]*>([\s\S]*?)<\/table>/gi;
+  let contestMatch: RegExpExecArray | null;
+
+  while ((contestMatch = contestPattern.exec(html)) !== null) {
+    const office = decodeHtml(contestMatch[1]);
+    const electionType = decodeHtml(contestMatch[2]);
+    const id = contestMatch[3];
+    const table = contestMatch[4];
+    const candidates: CandidateResult[] = [];
+    const rowPattern = /<tr[^>]*class="[^"]*grid-row[^"]*"[^>]*>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>[\s\S]*?<td[^>]*>[\s\S]*?<span>\s*([\d,]+)\s*<\/span>[\s\S]*?<div[^>]*class="[^"]*progressbar[^"]*"[^>]*>\s*([\d.]+)%\s*<\/div>[\s\S]*?<\/tr>/gi;
+    let rowMatch: RegExpExecArray | null;
+
+    while ((rowMatch = rowPattern.exec(table)) !== null) {
+      const votes = Number(rowMatch[3].replace(/,/g, ""));
+      const voteShare = Number(rowMatch[4]);
+      if (!Number.isFinite(votes) || !Number.isFinite(voteShare)) continue;
+      candidates.push({
+        id: `${id}-${candidates.length + 1}`,
+        name: decodeHtml(rowMatch[1]),
+        party: decodeHtml(rowMatch[2]) || partyFromElectionType(electionType),
+        votes,
+        voteShare,
+      });
+    }
+
+    if (!candidates.length) continue;
+    const totalVotes = candidates.reduce((sum, candidate) => sum + candidate.votes, 0);
+    contests.push({
+      id,
+      name: electionType ? `${office} — ${electionType}` : office,
+      candidates: candidates.sort((a, b) => b.votes - a.votes),
+      totalVotes,
+      precinctsReporting: null,
+      totalPrecincts: null,
+      reportingPercent: null,
+    });
+  }
+
+  return contests;
+}
+
+async function fetchResultsPages(): Promise<{ contests: ContestResult[]; sourceTimestamp: string | null }> {
+  const responses = await Promise.all(DEFAULT_RESULTS_PAGES.map((url) =>
+    fetch(url, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "User-Agent": "Mozilla/5.0 (compatible; 305DataGirl/1.0; +https://florida-live-turnout.politicalgrl0318.workers.dev/)",
+      },
+    }).catch(() => null)
+  ));
+
+  const contests = new Map<string, ContestResult>();
+  let sourceTimestamp: string | null = null;
+  for (const response of responses) {
+    if (!response?.ok) continue;
+    sourceTimestamp = response.headers.get("last-modified") ?? response.headers.get("date") ?? sourceTimestamp;
+    const html = await readText(response);
+    for (const contest of parseResultsPage(html)) contests.set(contest.id, contest);
+  }
+  return { contests: [...contests.values()].sort((a, b) => a.name.localeCompare(b.name)), sourceTimestamp };
 }
 
 function parseFeeds(infoText: string, votesText: string): ContestResult[] {
@@ -198,22 +285,31 @@ export async function handleOfficialElectionResults(env: FeedEnv): Promise<Respo
       }, refreshSeconds);
     }
 
-    const hasVotes = contests.some((contest) => contest.totalVotes > 0);
-    const lastModified = votesResponse.headers.get("last-modified");
+    let liveContests = contests;
+    let hasVotes = liveContests.some((contest) => contest.totalVotes > 0);
+    let sourceTimestamp = votesResponse.headers.get("last-modified");
+    if (!hasVotes) {
+      const pageResults = await fetchResultsPages();
+      if (pageResults.contests.some((contest) => contest.totalVotes > 0)) {
+        liveContests = pageResults.contests;
+        hasVotes = true;
+        sourceTimestamp = pageResults.sourceTimestamp;
+      }
+    }
     if (!hasVotes) {
       return json({
         status: "waiting",
         message: "Official contest information is available. Waiting for Florida Election Watch to publish vote totals.",
         contests,
         sourceUrl: publicUrl,
-        sourceTimestamp: lastModified,
+        sourceTimestamp,
         refreshSeconds,
       }, refreshSeconds);
     }
 
     cached = {
-      contests,
-      sourceTimestamp: lastModified,
+      contests: liveContests,
+      sourceTimestamp,
       verifiedAt: new Date().toISOString(),
     };
     cacheExpiresAt = Date.now() + refreshSeconds * 1000;
