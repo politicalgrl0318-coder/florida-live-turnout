@@ -256,7 +256,7 @@ export default function SenatePrecinctResultsMap() {
       <section style={{padding:26,marginTop:20,borderRadius:22,background:"#fff4e5",border:"1px solid #ffd59b"}}>
         <h2 style={{marginTop:0}}>Read this map correctly</h2>
         <p style={{lineHeight:1.65}}>
-          This is a partial results explorer, not a statewide final precinct map. It contains {reported.length || 0} counties with usable Nixon–Vindman totals from the normalized county files currently collected. Nineteen county sources remain pending, and Bay and Pasco are present in the source export but contain no usable candidate totals. Congressional-district assignments and split-precinct geometry are still being validated.
+          This is a partial results explorer, not a statewide final precinct map. It contains {reported.length || 0} counties with usable Nixon–Vindman totals from the normalized county files currently collected. Additional county sources remain pending, and Bay and Pasco are present in the source export but contain no usable candidate totals. Congressional-district assignments and split-precinct geometry are still being validated.
         </p>
         <p style={{marginBottom:0}}>Missing data are never counted as zero. Results remain unofficial until canvassing and certification are complete. Sources: county Supervisors of Elections and Florida Election Watch.</p>
       </section>
