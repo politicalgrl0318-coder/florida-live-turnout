@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { primaryCounties } from "../primary-map/data";
 
 const coverage = [
   "Baker","Bay","Bradford","Brevard","Calhoun","Charlotte","Citrus","Clay",
@@ -19,12 +20,16 @@ const pending = [
   "Palm Beach","Pinellas","Santa Rosa","Seminole","Suwannee"
 ];
 
+const collectedCounties = new Set(coverage);
+
 export default function SenatePrecinctMapPreview() {
   const [query, setQuery] = useState("");
+  const [selectedCounty, setSelectedCounty] = useState("Miami-Dade");
   const shown = useMemo(
     () => coverage.filter((county) => county.toLowerCase().includes(query.toLowerCase())),
     [query],
   );
+  const selectedIsCollected = collectedCounties.has(selectedCounty);
 
   return (
     <main style={{maxWidth:1180,margin:"0 auto",padding:"42px 22px 72px",fontFamily:"var(--font-geist-sans)"}}>
@@ -45,6 +50,59 @@ export default function SenatePrecinctMapPreview() {
         <article style={{padding:24,border:"1px solid #dce5ee",borderRadius:20}}><span>Counties pending</span><strong style={{display:"block",fontSize:38,marginTop:8}}>19</strong></article>
       </section>
 
+      <section style={{padding:28,border:"1px solid #dce5ee",borderRadius:24,marginBottom:20}}>
+        <div style={{display:"flex",gap:16,justifyContent:"space-between",alignItems:"end",flexWrap:"wrap"}}>
+          <div>
+            <h2 style={{fontSize:28,margin:"0 0 8px"}}>Interactive collection coverage map</h2>
+            <p style={{margin:0,color:"#516273"}}>Select a county to see whether its precinct results have been normalized.</p>
+          </div>
+          <div style={{display:"flex",gap:14,fontWeight:750,fontSize:14}}>
+            <span><i style={{display:"inline-block",width:12,height:12,borderRadius:3,background:"#2a9d68",marginRight:6}}/>Collected</span>
+            <span><i style={{display:"inline-block",width:12,height:12,borderRadius:3,background:"#f2b84b",marginRight:6}}/>Pending</span>
+          </div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"minmax(0,2fr) minmax(220px,1fr)",gap:24,alignItems:"center",marginTop:20}}>
+          <svg viewBox="0 0 860 650" role="img" aria-label="Florida county collection coverage map" style={{width:"100%",height:"auto",maxHeight:620}}>
+            {primaryCounties.map((county) => {
+              const ready = collectedCounties.has(county.name);
+              const selected = county.name === selectedCounty;
+              return (
+                <path
+                  key={county.id}
+                  d={county.path}
+                  fill={ready ? "#2a9d68" : "#f2b84b"}
+                  stroke={selected ? "#071d36" : "#ffffff"}
+                  strokeWidth={selected ? 4 : 1.25}
+                  style={{cursor:"pointer",transition:"opacity .15s ease"}}
+                  onClick={() => setSelectedCounty(county.name)}
+                  onMouseEnter={() => setSelectedCounty(county.name)}
+                  onFocus={() => setSelectedCounty(county.name)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${county.name} County: ${ready ? "collected" : "pending"}`}
+                />
+              );
+            })}
+          </svg>
+
+          <aside style={{padding:22,borderRadius:18,background:selectedIsCollected ? "#eaf6ef" : "#fff4e5",border:`1px solid ${selectedIsCollected ? "#b8dfca" : "#ffd59b"}`}}>
+            <p style={{fontSize:13,fontWeight:850,letterSpacing:".1em",textTransform:"uppercase",margin:"0 0 8px",color:"#516273"}}>Selected county</p>
+            <h3 style={{fontSize:30,margin:"0 0 10px"}}>{selectedCounty}</h3>
+            <p style={{fontSize:18,fontWeight:800,margin:"0 0 12px",color:selectedIsCollected ? "#135c37" : "#8a5300"}}>
+              {selectedIsCollected ? "Precinct results collected" : "County source pending"}
+            </p>
+            <p style={{lineHeight:1.55,margin:0}}>
+              {selectedIsCollected
+                ? "Candidate-by-precinct results are present in the normalized working dataset."
+                : "This county is not counted as zero. Its custom election export still needs to be collected and normalized."}
+            </p>
+          </aside>
+        </div>
+
+        <p style={{fontWeight:800,margin:"18px 0 0"}}>Coverage map only — colors show data availability, not candidate performance.</p>
+      </section>
+
       <section style={{padding:28,border:"1px solid #dce5ee",borderRadius:24}}>
         <div style={{display:"flex",gap:16,justifyContent:"space-between",alignItems:"end",flexWrap:"wrap"}}>
           <div><h2 style={{fontSize:28,margin:"0 0 8px"}}>Validated collection coverage</h2><p style={{margin:0,color:"#516273"}}>These counties have candidate-by-precinct results in the normalized dataset.</p></div>
@@ -52,7 +110,7 @@ export default function SenatePrecinctMapPreview() {
             style={{padding:"12px 14px",border:"1px solid #b8c5d1",borderRadius:12,fontSize:16}}/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginTop:22}}>
-          {shown.map((county)=><div key={county} style={{padding:"11px 13px",borderRadius:10,background:"#eaf6ef",color:"#135c37",fontWeight:750}}>✓ {county}</div>)}
+          {shown.map((county)=><button key={county} onClick={()=>setSelectedCounty(county)} style={{padding:"11px 13px",border:0,borderRadius:10,background:"#eaf6ef",color:"#135c37",fontWeight:750,textAlign:"left",cursor:"pointer"}}>✓ {county}</button>)}
         </div>
       </section>
 
