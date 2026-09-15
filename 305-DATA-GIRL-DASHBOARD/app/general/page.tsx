@@ -109,10 +109,10 @@ export default function GeneralElection(){
 
   return <main className={styles.page}>
     <header className={styles.hero}>
-      <div className={styles.brand}><img src="/vanessa-brito.jpg" alt="Vanessa Brito, 305 Data Girl"/><div><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span></div></div>
+      <div className={styles.brand}><img src="/vanessa-brito.jpg" alt="Dr. Vanessa Brito, 305 Data Girl"/><div><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span></div></div>
       <div className={styles.eyebrow}><i/> OFFICIAL FLORIDA ELECTION DATA</div>
       <h1>Florida General Election 2026</h1>
-      <p className={styles.dek}>{view==="turnout"?"Live turnout across Florida counties as official county reporting feeds come online.":"County-reported Vote-by-Mail and Early Voting activity compiled by the Florida Division of Elections, including ballots provided, returned, outstanding, and early votes cast."}</p>
+      <p className={styles.dek}>{view==="turnout"?"Live turnout across Florida counties as official county reporting feeds come online.":"Vote-by-Mail and Early Voting activity for the November 3 General Election, including ballots provided, returned and outstanding, plus early votes cast."}</p>
       <div className={styles.status}><span>Election 49894</span><b>•</b><span>Election Day: Nov. 3</span><b>•</b>{view==="turnout"?<span>{liveTurnout.length}/67 live turnout feeds</span>:<span>State compilation: {data?.compiled||"loading…"}</span>}<button onClick={refresh} disabled={loading||turnoutLoading}>{loading||turnoutLoading?"Refreshing…":"Refresh now"}</button></div>
     </header>
 
@@ -177,7 +177,7 @@ export default function GeneralElection(){
     </section>
 
     <footer className={styles.footer}>
-      <div className={styles.footerBrand}><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span><span>Vanessa Brito</span></div>
+      <div className={styles.footerBrand}><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span><span>Dr. Vanessa Brito</span></div>
       <div className={styles.footerContact}>
         <a href="mailto:politicalgrl0318@gmail.com">politicalgrl0318@gmail.com</a>
         <a href="https://www.instagram.com/vanessabritomiami" target="_blank" rel="noreferrer">Instagram @vanessabritomiami</a>
