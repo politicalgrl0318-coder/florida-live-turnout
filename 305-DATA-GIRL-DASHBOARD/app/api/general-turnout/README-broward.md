@@ -1,0 +1,1 @@
+Broward County does not use the standard Florida Turnout Quick View feed used by the other counties. The General Election turnout API special-cases Broward and reads its official ElectionLink VoteTypeByParty widget for November 3, 2026. If Broward has not yet published that widget, the dashboard leaves Broward marked unavailable rather than substituting zero turnout.
