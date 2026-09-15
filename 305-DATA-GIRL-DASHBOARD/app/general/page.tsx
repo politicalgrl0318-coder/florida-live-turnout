@@ -7,7 +7,6 @@ type Split={rep:number;dem:number;other:number;npa:number;total:number;compiled?
 type CountyRow={code:string;name:string;sourceUrl:string;earlyVoting:string;provided:Split;voted:Split;early:Split};
 type Payload={generatedAt:string;compiled:string;electionName:string;electionNumber:string;electionDate:string;totals:{provided:Split;voted:Split;early:Split};counties:CountyRow[]};
 type SortKey="name"|"sent"|"outstanding"|"returned"|"rate"|"early"|"margin";
-
 type PartySplit={dem:number;rep:number;npa:number;other:number};
 type TurnoutRow={code:string;name:string;sourceUrl:string;status:"live"|"unavailable";registered:number;ballots:number;turnout:number;mail:number;early:number;electionDay:number;dem:number;rep:number;npa:number;other:number;mailParty:PartySplit;earlyParty:PartySplit;electionDayParty:PartySplit;updated:string|null;electionName:string;electionDate:string};
 type TurnoutPayload={generatedAt:string;electionName:string;electionDate:string;counties:TurnoutRow[]};
@@ -36,7 +35,6 @@ export default function GeneralElection(){
   const[query,setQuery]=useState("");
   const[sort,setSort]=useState<SortKey>("sent");
   const[ascending,setAscending]=useState(false);
-
   const[turnoutData,setTurnoutData]=useState<TurnoutPayload|null>(null);
   const[turnoutError,setTurnoutError]=useState("");
   const[turnoutLoading,setTurnoutLoading]=useState(true);
@@ -109,17 +107,12 @@ export default function GeneralElection(){
   const SortButton=({k,children}:{k:SortKey;children:React.ReactNode})=><button className={styles.sort} onClick={()=>chooseSort(k)}>{children}<span>{sort===k?(ascending?"↑":"↓"):""}</span></button>;
   const TurnoutSortButton=({k,children}:{k:TurnoutSortKey;children:React.ReactNode})=><button className={styles.sort} onClick={()=>chooseTurnoutSort(k)}>{children}<span>{turnoutSort===k?(turnoutAscending?"↑":"↓"):""}</span></button>;
 
-  const tabs=<nav aria-label="General Election data views" style={{maxWidth:1280,margin:"0 auto",padding:"18px 24px 0",display:"flex",gap:8,flexWrap:"wrap"}}>
-    <button onClick={()=>setView("turnout")} aria-pressed={view==="turnout"} style={{border:"1px solid #cfc7bb",borderRadius:999,padding:"11px 17px",fontWeight:800,cursor:"pointer",background:view==="turnout"?"#101a2b":"#fff",color:view==="turnout"?"#fff":"#17253d"}}>Live County Turnout</button>
-    <button onClick={()=>setView("state")} aria-pressed={view==="state"} style={{border:"1px solid #cfc7bb",borderRadius:999,padding:"11px 17px",fontWeight:800,cursor:"pointer",background:view==="state"?"#101a2b":"#fff",color:view==="state"?"#fff":"#17253d"}}>State VBM + Early Voting</button>
-  </nav>;
-
   return <main className={styles.page}>
     <header className={styles.hero}>
-      <div className={styles.brand}><img src="/vanessa-brito.jpg" alt="Vanessa Brito, 305 Data Girl"/><div><strong><b>305</b> Data Girl</strong><span>Florida politics—with receipts.</span></div></div>
+      <div className={styles.brand}><img src="/vanessa-brito.jpg" alt="Vanessa Brito, 305 Data Girl"/><div><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span></div></div>
       <div className={styles.eyebrow}><i/> OFFICIAL FLORIDA ELECTION DATA</div>
       <h1>Florida General Election 2026</h1>
-      <p className={styles.dek}>{view==="turnout"?"Live turnout across Florida counties as official county reporting feeds come online.":"Statewide Vote-by-Mail and Early Voting activity from the Florida Division of Elections."}</p>
+      <p className={styles.dek}>{view==="turnout"?"Live turnout across Florida counties as official county reporting feeds come online.":"County-reported Vote-by-Mail and Early Voting activity compiled by the Florida Division of Elections, including ballots provided, returned, outstanding, and early votes cast."}</p>
       <div className={styles.status}><span>Election 49894</span><b>•</b><span>Election Day: Nov. 3</span><b>•</b>{view==="turnout"?<span>{liveTurnout.length}/67 live turnout feeds</span>:<span>State compilation: {data?.compiled||"loading…"}</span>}<button onClick={refresh} disabled={loading||turnoutLoading}>{loading||turnoutLoading?"Refreshing…":"Refresh now"}</button></div>
     </header>
 
@@ -132,7 +125,10 @@ export default function GeneralElection(){
       <article><span>NOV 3</span><b>Election Day</b><small>VBM due by 7:00 PM</small></article>
     </section>
 
-    {tabs}
+    <nav className={styles.tabs} aria-label="General Election data views">
+      <button className={view==="turnout"?styles.activeTab:""} onClick={()=>setView("turnout")} aria-pressed={view==="turnout"}>Live County Turnout</button>
+      <button className={view==="state"?styles.activeTab:""} onClick={()=>setView("state")} aria-pressed={view==="state"}>State VBM + Early Voting</button>
+    </nav>
 
     <section className={styles.content}>
       {view==="turnout"?<>
@@ -157,7 +153,7 @@ export default function GeneralElection(){
         </section>
       </>:<>
         {error&&<div className={styles.error}><b>Ballot activity feed issue:</b> {error}<button onClick={refreshBallotActivity}>Try again</button></div>}
-        <div className={styles.phase}><span>STATE VBM + EARLY VOTING</span><strong>Ballot pipeline</strong><p>Florida Division of Elections data tracking ballots provided, outstanding, returned and early-vote activity by county.</p></div>
+        <div className={styles.phase}><span>STATE VBM + EARLY VOTING</span><strong>Ballot pipeline</strong><p>County-reported data compiled by the Florida Division of Elections: Vote-by-Mail ballots provided, outstanding and returned, plus early votes cast as counties begin reporting.</p></div>
         <div className={styles.cards}>
           <article><label>VBM sent / provided</label><strong>{number.format(sentTotal)}</strong><small>Outstanding + returned</small></article>
           <article><label>Outstanding VBM</label><strong>{number.format(provided.total)}</strong><small>Provided, not yet returned</small></article>
@@ -172,14 +168,25 @@ export default function GeneralElection(){
           <article className={styles.margin}><span>STATEWIDE D–R VBM GAP</span><strong className={margin>=0?styles.dem:styles.rep}>{margin>=0?"D":"R"} +{number.format(Math.abs(margin))}</strong><small>Among ballots sent / provided</small></article>
         </div>
         <section className={styles.tableCard}>
-          <div className={styles.tableHead}><div><h2>State VBM + early voting by county</h2><p>Florida Division of Elections reporting by county: VBM sent, outstanding, returned, return rate and early voting.</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search ballot activity counties"/></div>
+          <div className={styles.tableHead}><div><h2>State VBM + early voting by county</h2><p>County-submitted activity compiled by the Florida Division of Elections: VBM provided, outstanding and returned; return rate; and early votes cast.</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search ballot activity counties"/></div>
           <div className={styles.tableWrap}><table><thead><tr><th><SortButton k="name">County</SortButton></th><th><SortButton k="sent">VBM sent</SortButton></th><th><SortButton k="outstanding">Outstanding</SortButton></th><th><SortButton k="returned">Returned</SortButton></th><th><SortButton k="rate">Return rate</SortButton></th><th><SortButton k="early">Early votes</SortButton></th><th>REP sent</th><th>DEM sent</th><th>NPA sent</th><th><SortButton k="margin">D–R gap</SortButton></th><th>Early voting</th><th>Last report</th></tr></thead><tbody>{rows.map(c=>{const cSent=sent(c.provided,c.voted),cRep=partySent(c.provided,c.voted,"rep"),cDem=partySent(c.provided,c.voted,"dem"),cNpa=partySent(c.provided,c.voted,"npa"),cMargin=cDem-cRep;return <tr key={c.code}><td><a href={officialStats} target="_blank" rel="noreferrer"><b>{c.name}</b><span>{c.code} ↗</span></a></td><td><b>{number.format(cSent)}</b></td><td>{number.format(c.provided.total)}</td><td>{number.format(c.voted.total)}</td><td>{cSent?pct(c.voted.total/cSent*100):"—"}</td><td>{number.format(c.early.total)}</td><td className={styles.rep}>{number.format(cRep)}</td><td className={styles.dem}>{number.format(cDem)}</td><td>{number.format(cNpa)}</td><td className={cMargin>=0?styles.dem:styles.rep}>{cSent?`${cMargin>=0?"D":"R"} +${number.format(Math.abs(cMargin))}`:"—"}</td><td>{c.earlyVoting||"—"}</td><td>{c.provided.compiled||c.voted.compiled||c.early.compiled||"—"}</td></tr>})}</tbody></table></div>
         </section>
       </>}
 
-      <section className={styles.actions}><div><h2>Official voter resources</h2><p>{view==="turnout"?"Live turnout comes from official county reporting: Turnout Quick View for most counties and Broward's ElectionLink reporting for Broward.":"The VBM and early-voting figures come from the Florida Division of Elections statewide reporting portal."}</p></div><div><a href={electionDates} target="_blank" rel="noreferrer">Election dates ↗</a><a href={vbmInfo} target="_blank" rel="noreferrer">Vote-by-Mail rules ↗</a><a href={soeDirectory} target="_blank" rel="noreferrer">Find your county SOE ↗</a><a href={officialStats} target="_blank" rel="noreferrer">Florida source data ↗</a></div></section>
+      <section className={styles.actions}><div><h2>Official voter resources</h2><p>{view==="turnout"?"Live turnout comes from official county reporting: Turnout Quick View for most counties and Broward's ElectionLink reporting for Broward.":"These VBM and early-voting figures are submitted by county election officials and compiled by the Florida Division of Elections."}</p></div><div><a href={electionDates} target="_blank" rel="noreferrer">Election dates ↗</a><a href={vbmInfo} target="_blank" rel="noreferrer">Vote-by-Mail rules ↗</a><a href={soeDirectory} target="_blank" rel="noreferrer">Find your county SOE ↗</a><a href={officialStats} target="_blank" rel="noreferrer">Florida source data ↗</a></div></section>
     </section>
 
-    <footer className={styles.footer}><div><strong>305 Data Girl</strong><span>Florida politics—with receipts.</span></div><p>Sources: Florida Division of Elections Vote-by-Mail Request & Early Voting Statistics, Election 49894; Florida county Turnout Quick View reports; Broward County official ElectionLink reporting. Figures update as county election offices publish new data. Dashboard refreshes automatically every five minutes.</p></footer>
+    <footer className={styles.footer}>
+      <div className={styles.footerBrand}><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span><span>Vanessa Brito</span></div>
+      <div className={styles.footerContact}>
+        <a href="mailto:politicalgrl0318@gmail.com">politicalgrl0318@gmail.com</a>
+        <a href="https://www.instagram.com/vanessabritomiami" target="_blank" rel="noreferrer">Instagram @vanessabritomiami</a>
+        <a href="https://www.threads.net/@vanessabritomiami" target="_blank" rel="noreferrer">Threads @vanessabritomiami</a>
+        <a href="https://x.com/vanessabritomia" target="_blank" rel="noreferrer">X @vanessabritomia</a>
+        <a href="https://www.facebook.com/share/1DA4uCufrb/?mibextid=wwXIfr" target="_blank" rel="noreferrer">Facebook Vanessa Brito</a>
+        <a href="https://substack.com/@vanessabritomiami?r=5exhf8&utm_medium=ios&utm_source=stories&shareImageVariant=image" target="_blank" rel="noreferrer">Substack @vanessabritomiami</a>
+      </div>
+      <p>Sources: Florida Division of Elections Vote-by-Mail Request & Early Voting Statistics, Election 49894; Florida county Turnout Quick View reports; Broward County official ElectionLink reporting. Figures update as county election offices publish new data. Dashboard refreshes automatically every five minutes.</p>
+    </footer>
   </main>
 }
