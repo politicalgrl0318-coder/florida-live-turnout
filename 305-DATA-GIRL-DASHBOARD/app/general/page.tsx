@@ -20,10 +20,13 @@ const officialStats="https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVot
 const electionDates="https://dos.fl.gov/elections/for-voters/election-dates";
 const vbmInfo="https://dos.fl.gov/elections/for-voters/voting/vote-by-mail";
 const soeDirectory="https://dos.elections.myflorida.com/supervisors/";
+const browardResults="https://browardvotes.gov/results-information/election-results-information";
 
 function sent(s:Split,r:Split){return s.total+r.total}
 function partySent(s:Split,r:Split,key:"rep"|"dem"|"npa"|"other"){return s[key]+r[key]}
 function returnRate(row:CountyRow){const total=sent(row.provided,row.voted);return total?row.voted.total/total*100:0}
+function turnoutReportUrl(row:TurnoutRow){return row.code==="BRO"?browardResults:row.sourceUrl}
+function turnoutSourceLabel(row:TurnoutRow){return row.code==="BRO"?"Broward official report":"TQV live report"}
 
 export default function GeneralElection(){
   const[data,setData]=useState<Payload|null>(null);
@@ -60,7 +63,7 @@ export default function GeneralElection(){
       const payloads=await Promise.all(responses.map(async r=>await r.json() as TurnoutPayload));
       const first=payloads.find(p=>p.counties.length)||payloads[0];
       setTurnoutData({generatedAt:payloads.map(p=>p.generatedAt).sort().at(-1)||new Date().toISOString(),electionName:first?.electionName||"2026 General Election",electionDate:first?.electionDate||"11/03/2026",counties:payloads.flatMap(p=>p.counties)});
-    }catch(e){setTurnoutError(e instanceof Error?e.message:"Unable to load county Turnout Quick View data.")}
+    }catch(e){setTurnoutError(e instanceof Error?e.message:"Unable to load county turnout data.")}
     finally{setTurnoutLoading(false)}
   }
 
@@ -110,7 +113,7 @@ export default function GeneralElection(){
       <div className={styles.brand}><img src="/vanessa-brito.jpg" alt="Vanessa Brito, 305 Data Girl"/><div><strong><b>305</b> Data Girl</strong><span>Florida politics—with receipts.</span></div></div>
       <div className={styles.eyebrow}><i/> OFFICIAL FLORIDA ELECTION DATA</div>
       <h1>Florida General Election 2026</h1>
-      <p className={styles.dek}>All 67 counties. One statewide view. Track the ballot pipeline and the votes actually being cast as county Turnout Quick View feeds come online.</p>
+      <p className={styles.dek}>All 67 counties. One statewide view. Track the ballot pipeline and the votes actually being cast as official county turnout feeds come online.</p>
       <div className={styles.status}><span>Election 49894</span><b>•</b><span>Election Day: Nov. 3</span><b>•</b><span>{liveTurnout.length}/67 live turnout feeds</span><b>•</b><span>State compilation: {data?.compiled||"loading…"}</span><button onClick={refresh} disabled={loading||turnoutLoading}>{loading||turnoutLoading?"Refreshing…":"Refresh now"}</button></div>
     </header>
 
@@ -153,9 +156,9 @@ export default function GeneralElection(){
         })}</tbody></table></div>
       </section>
 
-      {turnoutError&&<div className={styles.error}><b>Turnout Quick View issue:</b> {turnoutError}<button onClick={refreshTurnout}>Try again</button></div>}
+      {turnoutError&&<div className={styles.error}><b>County turnout feed issue:</b> {turnoutError}<button onClick={refreshTurnout}>Try again</button></div>}
 
-      <div className={styles.phase}><span>LIVE TURNOUT</span><strong>Votes actually cast</strong><p>{liveTurnout.length}/67 county General Election feeds are currently publishing through Florida Turnout Quick View. Each county name opens its official live report.</p></div>
+      <div className={styles.phase}><span>LIVE TURNOUT</span><strong>Votes actually cast</strong><p>{liveTurnout.length}/67 county General Election feeds are currently publishing. Most counties use Florida Turnout Quick View; Broward uses its official ElectionLink reporting.</p></div>
 
       <div className={styles.cards}>
         <article><label>Ballots cast</label><strong>{number.format(turnoutTotals.ballots)}</strong><small>{turnoutTotals.registered?pct(turnoutTotals.ballots/turnoutTotals.registered*100):"—"} turnout across live counties</small></article>
@@ -173,15 +176,15 @@ export default function GeneralElection(){
       </div>
 
       <section className={styles.tableCard}>
-        <div className={styles.tableHead}><div><h2>Live turnout by county</h2><p>Official county Turnout Quick View data: VBM, early vote, Election Day and party turnout. Click a county to open its live report.</p></div><input value={turnoutQuery} onChange={e=>setTurnoutQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search live turnout counties"/></div>
+        <div className={styles.tableHead}><div><h2>Live turnout by county</h2><p>Official county turnout data: VBM, early vote, Election Day and party turnout. TQV is used for most counties; Broward links to its official ElectionLink/Broward report.</p></div><input value={turnoutQuery} onChange={e=>setTurnoutQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search live turnout counties"/></div>
         <div className={styles.tableWrap}><table><thead><tr>
           <th><TurnoutSortButton k="name">County</TurnoutSortButton></th><th><TurnoutSortButton k="ballots">Ballots cast</TurnoutSortButton></th><th><TurnoutSortButton k="turnout">Turnout</TurnoutSortButton></th><th><TurnoutSortButton k="mail">VBM</TurnoutSortButton></th><th><TurnoutSortButton k="early">Early vote</TurnoutSortButton></th><th><TurnoutSortButton k="electionDay">Election Day</TurnoutSortButton></th><th><TurnoutSortButton k="rep">REP</TurnoutSortButton></th><th><TurnoutSortButton k="dem">DEM</TurnoutSortButton></th><th>NPA</th><th><TurnoutSortButton k="margin">D–R margin</TurnoutSortButton></th><th><TurnoutSortButton k="updated">Last county update</TurnoutSortButton></th>
-        </tr></thead><tbody>{turnoutRows.map(c=><tr key={c.code}><td><a href={c.sourceUrl} target="_blank" rel="noreferrer"><b>{c.name}</b><span>{c.code} • Live report ↗</span></a></td>{c.status==="live"?<><td><b>{number.format(c.ballots)}</b></td><td><b>{pct(c.turnout)}</b></td><td>{number.format(c.mail)}</td><td>{number.format(c.early)}</td><td>{number.format(c.electionDay)}</td><td className={styles.rep}>{number.format(c.rep)}</td><td className={styles.dem}>{number.format(c.dem)}</td><td>{number.format(c.npa)}</td><td className={c.dem>=c.rep?styles.dem:styles.rep}>{c.dem>=c.rep?"D":"R"} +{number.format(Math.abs(c.dem-c.rep))}</td><td>{formatTime(c.updated)}</td></>:<td colSpan={10}>General Election turnout feed not published yet — open county report ↗</td>}</tr>)}</tbody></table></div>
+        </tr></thead><tbody>{turnoutRows.map(c=><tr key={c.code}><td><a href={turnoutReportUrl(c)} target="_blank" rel="noreferrer"><b>{c.name}</b><span>{c.code} • {turnoutSourceLabel(c)} ↗</span></a></td>{c.status==="live"?<><td><b>{number.format(c.ballots)}</b></td><td><b>{pct(c.turnout)}</b></td><td>{number.format(c.mail)}</td><td>{number.format(c.early)}</td><td>{number.format(c.electionDay)}</td><td className={styles.rep}>{number.format(c.rep)}</td><td className={styles.dem}>{number.format(c.dem)}</td><td>{number.format(c.npa)}</td><td className={c.dem>=c.rep?styles.dem:styles.rep}>{c.dem>=c.rep?"D":"R"} +{number.format(Math.abs(c.dem-c.rep))}</td><td>{formatTime(c.updated)}</td></>:<td colSpan={10}>General Election turnout feed not published yet — open county report ↗</td>}</tr>)}</tbody></table></div>
       </section>
 
-      <section className={styles.actions}><div><h2>Official voter resources</h2><p>The ballot-pipeline figures come from the Florida Division of Elections. Live turnout comes from county Turnout Quick View reporting. Voters should use official state or county election offices for registration, ballot requests, tracking and polling information.</p></div><div><a href={electionDates} target="_blank" rel="noreferrer">Election dates ↗</a><a href={vbmInfo} target="_blank" rel="noreferrer">Vote-by-Mail rules ↗</a><a href={soeDirectory} target="_blank" rel="noreferrer">Find your county SOE ↗</a><a href={officialStats} target="_blank" rel="noreferrer">Florida source data ↗</a></div></section>
+      <section className={styles.actions}><div><h2>Official voter resources</h2><p>The ballot-pipeline figures come from the Florida Division of Elections. Live turnout comes from official county reporting: Turnout Quick View for most counties and Broward's ElectionLink reporting for Broward. Voters should use official state or county election offices for registration, ballot requests, tracking and polling information.</p></div><div><a href={electionDates} target="_blank" rel="noreferrer">Election dates ↗</a><a href={vbmInfo} target="_blank" rel="noreferrer">Vote-by-Mail rules ↗</a><a href={soeDirectory} target="_blank" rel="noreferrer">Find your county SOE ↗</a><a href={officialStats} target="_blank" rel="noreferrer">Florida source data ↗</a></div></section>
     </section>
 
-    <footer className={styles.footer}><div><strong>305 Data Girl</strong><span>Florida politics—with receipts.</span></div><p>Sources: Florida Division of Elections Vote-by-Mail Request & Early Voting Statistics, Election 49894; Florida county Turnout Quick View reports. Figures update as county election offices publish new data. Dashboard refreshes automatically every five minutes.</p></footer>
+    <footer className={styles.footer}><div><strong>305 Data Girl</strong><span>Florida politics—with receipts.</span></div><p>Sources: Florida Division of Elections Vote-by-Mail Request & Early Voting Statistics, Election 49894; Florida county Turnout Quick View reports; Broward County official ElectionLink reporting. Figures update as county election offices publish new data. Dashboard refreshes automatically every five minutes.</p></footer>
   </main>
 }
