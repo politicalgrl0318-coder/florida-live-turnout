@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     siteName: "305 Data Girl",
     images: [
       {
-        url: "/general-election-og.jpg?v=20260915-1",
+        url: "/general-election-og.jpg?v=20260915-2",
         width: 1200,
         height: 630,
         alt: "305 Data Girl — Florida 2026 General Election",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     title: "305 Data Girl | Florida 2026 General Election",
     description:
       "Live Florida General Election turnout plus Vote-by-Mail and Early Voting activity for the November 3 election.",
-    images: ["/general-election-og.jpg?v=20260915-1"],
+    images: ["/general-election-og.jpg?v=20260915-2"],
   },
 };
 
