@@ -1,0 +1,1 @@
+Map social previews use a generated image route rather than a static uploaded image.

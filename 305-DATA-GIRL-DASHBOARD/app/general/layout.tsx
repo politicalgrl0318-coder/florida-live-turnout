@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 const siteUrl = "https://florida-live-turnout.politicalgrl0318.workers.dev";
-const socialImage = `${siteUrl}/305-data-girl-social.png?v=20260916-1`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -15,21 +14,12 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "305 Data Girl",
     url: `${siteUrl}/general`,
-    images: [
-      {
-        url: socialImage,
-        width: 1200,
-        height: 630,
-        alt: "305 Data Girl — Florida 2026 General Election",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "305 Data Girl | Florida 2026 General Election",
     description:
       "Live Florida General Election turnout plus Vote-by-Mail and Early Voting activity for the November 3 election.",
-    images: [socialImage],
   },
 };
 
