@@ -3,7 +3,7 @@
 import {useEffect,useMemo,useRef,useState} from "react";
 import styles from "./map.module.css";
 
-type PartySplit={dem:number;rep:number;npa:number;other:number};
+type PartySplit={dem:number;rep:number,npa:number;other:number};
 type TurnoutRow={code:string;name:string;sourceUrl:string;status:"live"|"unavailable";registered:number;ballots:number;turnout:number;mail:number;early:number;electionDay:number;dem:number;rep:number;npa:number;other:number;mailParty:PartySplit;earlyParty:PartySplit;electionDayParty:PartySplit;updated:string|null;electionName:string;electionDate:string};
 type TurnoutPayload={generatedAt:string;electionName:string;electionDate:string;counties:TurnoutRow[]};
 type Metric="margin"|"turnout"|"ballots";
@@ -19,6 +19,15 @@ const normalize=(s:string)=>s.toLowerCase().replace(/ county$/," ").replace(/[^a
 function reportUrl(row:TurnoutRow){return row.code==="BRO"?browardResults:row.sourceUrl}
 function formatTime(v:string|null){if(!v)return "—";const d=new Date(v);return Number.isNaN(d.valueOf())?v:new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"America/New_York",timeZoneName:"short"}).format(d)}
 
+function ringArea(ring:number[][]){let area=0;for(let i=0,j=ring.length-1;i<ring.length;j=i++){area+=(ring[j][0]*ring[i][1])-(ring[i][0]*ring[j][1])}return area/2}
+function rewindGeometry(geometry:any){
+ if(!geometry)return geometry;
+ const rewindPolygon=(rings:number[][][])=>rings.map((ring,i)=>{const shouldClockwise=i===0;const clockwise=ringArea(ring)<0;return clockwise===shouldClockwise?ring:[...ring].reverse()});
+ if(geometry.type==="Polygon")return {...geometry,coordinates:rewindPolygon(geometry.coordinates)};
+ if(geometry.type==="MultiPolygon")return {...geometry,coordinates:geometry.coordinates.map((poly:number[][][])=>rewindPolygon(poly))};
+ return geometry;
+}
+
 export default function TurnoutMap(){
  const[rows,setRows]=useState<TurnoutRow[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const[metric,setMetric]=useState<Metric>("margin"),[selected,setSelected]=useState<TurnoutRow|null>(null),[geo,setGeo]=useState<any>(null),[mapError,setMapError]=useState("");
@@ -27,7 +36,7 @@ export default function TurnoutMap(){
  async function refresh(){setLoading(true);setError("");try{const stamp=Date.now();const responses=await Promise.all(Array.from({length:5},(_,batch)=>fetch(`/api/general-turnout?batch=${batch}&t=${stamp}`,{cache:"no-store"})));if(responses.some(r=>!r.ok))throw new Error("One or more county feeds did not respond.");const payloads=await Promise.all(responses.map(r=>r.json() as Promise<TurnoutPayload>));setRows(payloads.flatMap(p=>p.counties));}catch(e){setError(e instanceof Error?e.message:"Unable to load turnout feeds.")}finally{setLoading(false)}}
 
  useEffect(()=>{refresh();const t=setInterval(refresh,300000);return()=>clearInterval(t)},[]);
- useEffect(()=>{fetch(censusGeo).then(r=>{if(!r.ok)throw new Error("Census geography unavailable");return r.json()}).then(setGeo).catch(()=>setMapError("The Census county-boundary layer did not load."))},[]);
+ useEffect(()=>{fetch(censusGeo).then(r=>{if(!r.ok)throw new Error("Census geography unavailable");return r.json()}).then((g:any)=>setGeo({...g,features:(g.features||[]).map((f:any)=>({...f,geometry:rewindGeometry(f.geometry)}))})).catch(()=>setMapError("The Census county-boundary layer did not load."))},[]);
  useEffect(()=>{if(window.d3)return;const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js";s.async=true;s.onload=()=>setGeo((g:any)=>g?{...g}:g);s.onerror=()=>setMapError("The map renderer did not load.");document.head.appendChild(s)},[]);
 
  const live=useMemo(()=>rows.filter(r=>r.status==="live"),[rows]);
@@ -39,7 +48,9 @@ export default function TurnoutMap(){
    if(!geo||!svgRef.current||!window.d3)return;
    const d3=window.d3,svg=d3.select(svgRef.current);svg.selectAll("*").remove();
    const width=900,height=600,features=(geo.features||[]) as any[];
-   const projection=d3.geoMercator().fitExtent([[18,18],[width-18,height-18]],geo);const path=d3.geoPath(projection);
+   if(!features.length){setMapError("Florida county geography did not contain any counties.");return}
+   const collection={type:"FeatureCollection",features};
+   const projection=d3.geoMercator().fitExtent([[24,24],[width-24,height-24]],collection);const path=d3.geoPath(projection);
    const maxBallots=Math.max(1,...live.map(r=>r.ballots));
    const fill=(r:TurnoutRow|undefined)=>{if(!r||r.status!=="live")return "#e4e2dc";if(metric==="margin"){const m=r.dem-r.rep;if(m>0)return "#3b82d0";if(m<0)return "#d85b50";return "#9b70d8"}if(metric==="turnout"){const v=Math.min(1,r.turnout/30);return d3.interpolateBlues(.18+.72*v)}const v=Math.sqrt(r.ballots/maxBallots);return d3.interpolateTeal(.18+.72*v)};
    svg.attr("viewBox",`0 0 ${width} ${height}`);
