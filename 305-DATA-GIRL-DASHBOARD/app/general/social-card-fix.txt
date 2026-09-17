@@ -1,0 +1,1 @@
+Generated social cards are served through Next file-based metadata routes to avoid static-asset crawler failures.
