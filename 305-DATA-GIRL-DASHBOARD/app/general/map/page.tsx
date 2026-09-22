@@ -6,7 +6,11 @@ import styles from "./map.module.css";
 type PartySplit={dem:number;rep:number,npa:number;other:number};
 type TurnoutRow={code:string;name:string;sourceUrl:string;status:"live"|"unavailable";registered:number;ballots:number;turnout:number;mail:number;early:number;electionDay:number;dem:number;rep:number;npa:number;other:number;mailParty:PartySplit;earlyParty:PartySplit;electionDayParty:PartySplit;updated:string|null;electionName:string;electionDate:string};
 type TurnoutPayload={generatedAt:string;electionName:string;electionDate:string;counties:TurnoutRow[]};
-type Metric="margin"|"turnout"|"ballots";
+type Split={rep:number;dem:number;npa:number;other:number;total:number;compiled?:string};
+type StateCounty={code:string;name:string;provided:Split;voted:Split;early:Split};
+type StatePayload={generatedAt:string;compiled:string;counties:StateCounty[]};
+type DisplayRow=TurnoutRow&{dataSource:"county"|"state";stateCompiled?:string};
+type Metric="margin"|"mail"|"ballots";
 
 declare global{interface Window{d3:any}}
 
@@ -29,20 +33,22 @@ function rewindGeometry(geometry:any){
 }
 
 export default function TurnoutMap(){
- const[rows,setRows]=useState<TurnoutRow[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
- const[metric,setMetric]=useState<Metric>("margin"),[selected,setSelected]=useState<TurnoutRow|null>(null),[geo,setGeo]=useState<any>(null),[mapError,setMapError]=useState("");
+ const[rows,setRows]=useState<TurnoutRow[]>([]),[stateRows,setStateRows]=useState<StateCounty[]>([]),[stateCompiled,setStateCompiled]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState("");
+ const[metric,setMetric]=useState<Metric>("margin"),[selected,setSelected]=useState<DisplayRow|null>(null),[geo,setGeo]=useState<any>(null),[mapError,setMapError]=useState("");
  const svgRef=useRef<SVGSVGElement|null>(null);
 
- async function refresh(){setLoading(true);setError("");try{const stamp=Date.now();const responses=await Promise.all(Array.from({length:5},(_,batch)=>fetch(`/api/general-turnout?batch=${batch}&t=${stamp}`,{cache:"no-store"})));if(responses.some(r=>!r.ok))throw new Error("One or more county feeds did not respond.");const payloads=await Promise.all(responses.map(r=>r.json() as Promise<TurnoutPayload>));setRows(payloads.flatMap(p=>p.counties));}catch(e){setError(e instanceof Error?e.message:"Unable to load turnout feeds.")}finally{setLoading(false)}}
+ async function refresh(){setLoading(true);setError("");try{const stamp=Date.now();const [stateResponse,...responses]=await Promise.all([fetch(`/api/general?t=${stamp}`,{cache:"no-store"}),...Array.from({length:5},(_,batch)=>fetch(`/api/general-turnout?batch=${batch}&t=${stamp}`,{cache:"no-store"}))]);if(!stateResponse.ok||responses.some(r=>!r.ok))throw new Error("One or more official election feeds did not respond.");const state=await stateResponse.json() as StatePayload;const payloads=await Promise.all(responses.map(r=>r.json() as Promise<TurnoutPayload>));setStateRows(state.counties||[]);setStateCompiled(state.compiled||"");setRows(payloads.flatMap(p=>p.counties));}catch(e){setError(e instanceof Error?e.message:"Unable to load official election data.")}finally{setLoading(false)}}
 
  useEffect(()=>{refresh();const t=setInterval(refresh,300000);return()=>clearInterval(t)},[]);
  useEffect(()=>{fetch(censusGeo).then(r=>{if(!r.ok)throw new Error("Census geography unavailable");return r.json()}).then((g:any)=>setGeo({...g,features:(g.features||[]).map((f:any)=>({...f,geometry:rewindGeometry(f.geometry)}))})).catch(()=>setMapError("The Census county-boundary layer did not load."))},[]);
  useEffect(()=>{if(window.d3)return;const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js";s.async=true;s.onload=()=>setGeo((g:any)=>g?{...g}:g);s.onerror=()=>setMapError("The map renderer did not load.");document.head.appendChild(s)},[]);
 
  const live=useMemo(()=>rows.filter(r=>r.status==="live"),[rows]);
- const totals=useMemo(()=>live.reduce((a,c)=>({ballots:a.ballots+c.ballots,registered:a.registered+c.registered,dem:a.dem+c.dem,rep:a.rep+c.rep,npa:a.npa+c.npa,other:a.other+c.other}),{ballots:0,registered:0,dem:0,rep:0,npa:0,other:0}),[live]);
+ const displayRows=useMemo<DisplayRow[]>(()=>{const stateMap=new Map(stateRows.map(r=>[r.code,r]));return rows.map(r=>{if(r.status==="live")return {...r,dataSource:"county" as const};const v=stateMap.get(r.code);const ballots=(v?.voted.total||0)+(v?.early.total||0);if(!v||ballots===0)return {...r,dataSource:"state" as const,stateCompiled};const dem=v.voted.dem+v.early.dem,rep=v.voted.rep+v.early.rep,npa=v.voted.npa+v.early.npa,other=v.voted.other+v.early.other;return {...r,status:"live" as const,ballots,mail:v.voted.total,early:v.early.total,electionDay:0,dem,rep,npa,other,mailParty:{dem:v.voted.dem,rep:v.voted.rep,npa:v.voted.npa,other:v.voted.other},earlyParty:{dem:v.early.dem,rep:v.early.rep,npa:v.early.npa,other:v.early.other},updated:v.voted.compiled||v.early.compiled||stateCompiled||null,dataSource:"state" as const,stateCompiled};});},[rows,stateRows,stateCompiled]);
+ const reporting=useMemo(()=>displayRows.filter(r=>r.status==="live"),[displayRows]);
+ const totals=useMemo(()=>reporting.reduce((a,c)=>({ballots:a.ballots+c.ballots,registered:a.registered+c.registered,dem:a.dem+c.dem,rep:a.rep+c.rep,npa:a.npa+c.npa,other:a.other+c.other}),{ballots:0,registered:0,dem:0,rep:0,npa:0,other:0}),[reporting]);
  const partyTotal=totals.dem+totals.rep+totals.npa+totals.other||1;
- const rowMap=useMemo(()=>new Map(rows.map(r=>[normalize(r.name),r])),[rows]);
+ const rowMap=useMemo(()=>new Map(displayRows.map(r=>[normalize(r.name),r])),[displayRows]);
 
  useEffect(()=>{
    if(!geo||!svgRef.current||!window.d3)return;
@@ -51,11 +57,11 @@ export default function TurnoutMap(){
    if(!features.length){setMapError("Florida county geography did not contain any counties.");return}
    const collection={type:"FeatureCollection",features};
    const projection=d3.geoMercator().fitExtent([[24,24],[width-24,height-24]],collection);const path=d3.geoPath(projection);
-   const maxBallots=Math.max(1,...live.map(r=>r.ballots));
-   const fill=(r:TurnoutRow|undefined)=>{if(!r||r.status!=="live")return "#e4e2dc";if(metric==="margin"){const m=r.dem-r.rep;if(m>0)return "#3b82d0";if(m<0)return "#d85b50";return "#9b70d8"}if(metric==="turnout"){const v=Math.min(1,r.turnout/30);return d3.interpolateBlues(.18+.72*v)}const v=Math.sqrt(r.ballots/maxBallots);return d3.interpolateTeal(.18+.72*v)};
+   const maxBallots=Math.max(1,...reporting.map(r=>r.ballots));
+   const fill=(r:TurnoutRow|undefined)=>{if(!r||r.status!=="live")return "#e4e2dc";if(metric==="margin"){const m=r.dem-r.rep;if(m>0)return "#3b82d0";if(m<0)return "#d85b50";return "#9b70d8"}if(metric==="mail"){const maxMail=Math.max(1,...reporting.map(x=>x.mail));const v=Math.sqrt(r.mail/maxMail);return d3.interpolateBlues(.18+.72*v)}const v=Math.sqrt(r.ballots/maxBallots);return d3.interpolateTeal(.18+.72*v)};
    svg.attr("viewBox",`0 0 ${width} ${height}`);
    svg.append("g").selectAll("path").data(features).join("path").attr("d",path).attr("fill",(f:any)=>fill(rowMap.get(normalize(f.properties?.BASENAME||f.properties?.NAME||"")))).attr("stroke","#172033").attr("stroke-width",1.25).style("cursor","pointer").attr("tabindex",0).attr("role","button").attr("aria-label",(f:any)=>`${f.properties?.BASENAME||f.properties?.NAME||"Florida county"} turnout details`).on("click",(_:any,f:any)=>{const r=rowMap.get(normalize(f.properties?.BASENAME||f.properties?.NAME||""));setSelected(r||null)}).on("keydown",(e:any,f:any)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();const r=rowMap.get(normalize(f.properties?.BASENAME||f.properties?.NAME||""));setSelected(r||null)}});
- },[geo,rowMap,metric,live]);
+ },[geo,rowMap,metric,reporting]);
 
  const statewideMargin=totals.dem-totals.rep;
  return <main className={styles.page}>
