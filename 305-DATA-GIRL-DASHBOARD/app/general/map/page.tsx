@@ -144,8 +144,13 @@ export default function TurnoutMap() {
   const displayRows = useMemo<DisplayRow[]>(() => {
     const stateMap = new Map(stateRows.map((row) => [normalize(row.name), row]));
     return rows.map((row) => {
-      if (row.status === "live") return { ...row, dataSource: "county" as const };
       const state = stateMap.get(normalize(row.name));
+      if (row.status === "live" && row.code === "BRO") {
+        const earlyParty = state ? { dem: state.early.dem, rep: state.early.rep, npa: state.early.npa, other: state.early.other } : emptyParty();
+        const early = state?.early.total || 0;
+        return { ...row, ballots: row.mail + early + row.electionDay, early, dem: row.mailParty.dem + earlyParty.dem + row.electionDayParty.dem, rep: row.mailParty.rep + earlyParty.rep + row.electionDayParty.rep, npa: row.mailParty.npa + earlyParty.npa + row.electionDayParty.npa, other: row.mailParty.other + earlyParty.other + row.electionDayParty.other, earlyParty, dataSource: "county" as const };
+      }
+      if (row.status === "live") return { ...row, dataSource: "county" as const };
       const ballots = (state?.voted.total || 0) + (state?.early.total || 0);
       if (!state || ballots === 0) return { ...row, dataSource: "state" as const, stateCompiled };
       const dem = state.voted.dem + state.early.dem, rep = state.voted.rep + state.early.rep, npa = state.voted.npa + state.early.npa, other = state.voted.other + state.early.other;
