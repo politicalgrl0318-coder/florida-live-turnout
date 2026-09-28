@@ -23,10 +23,10 @@ export const metadata: Metadata = {
     siteName: "305 Data Girl",
     images: [
       {
-        url: "/305-data-girl-social.png",
-        width: 1730,
-        height: 909,
-        alt: "Vanessa Brito — 305 Data Girl",
+        url: "/305-data-girl-general-2026.jpg",
+        width: 1536,
+        height: 768,
+        alt: "305 Data Girl — Florida 2026 General Election",
       },
     ],
   },
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "305 Data Girl | Florida Live Voter Turnout",
     description: "Florida politics—with receipts. Live unofficial voter turnout across all 67 Florida counties.",
-    images: ["/305-data-girl-social.png"],
+    images: ["/305-data-girl-general-2026.jpg"],
   },
   other: {
     "codex-preview": "development",

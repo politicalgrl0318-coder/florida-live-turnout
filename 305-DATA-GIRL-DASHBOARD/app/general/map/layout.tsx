@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 const site = "https://florida-live-turnout.politicalgrl0318.workers.dev";
-const socialImage = `${site}/305-data-girl-social.png`;
+const socialImage = `${site}/305-data-girl-general-2026.jpg`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(site),
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     url: `${site}/general/map`,
     type: "website",
     siteName: "305 Data Girl",
-    images: [{ url: socialImage, alt: "305 Data Girl — Florida 2026 General Election", type: "image/png" }],
+    images: [{ url: socialImage, width: 1536, height: 768, alt: "305 Data Girl — Florida 2026 General Election", type: "image/jpeg" }],
   },
   twitter: {
     card: "summary_large_image",
