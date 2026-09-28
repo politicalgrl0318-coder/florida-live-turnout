@@ -9,9 +9,9 @@ const counties: Record<string,string> = {
 
 const base = "https://s3.us-east-1.amazonaws.com/turnoutquickview.electionsfl.org/data/FL";
 const source = (code:string) => `https://tqv.vrswebapps.com/?state=FL&county=${code.toLowerCase()}`;
-const browardResultsPage = "https://browardvotes.gov/results-information/election-results-information";
-const browardPartyWidget = "https://updates.electionlink.net/widgets/browardfl/2026-11-03/VoteTypeByPartyTable.html";
-const browardLocationWidget = "https://updates.electionlink.net/widgets/browardfl/2026-11-03/VoteTypeByLocationTable.html";
+const browardResultsPage = "https://browardvotes.gov/results-information";
+const browardPartyCsv = "https://updates.electionlink.net/widgets/browardfl/2026-11-03/VoteTypeByPartyTable.csv";
+const browardPrecinctCsv = "https://updates.electionlink.net/widgets/browardfl/2026-11-03/TurnoutByPrecinctTable.csv";
 const BATCH_SIZE = 15;
 const generalElectionCache=new Map<string,{expires:number;promise:Promise<any>}>();
 const sum = (obj:Record<string,number>|undefined) => Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);
@@ -79,28 +79,62 @@ function precinctActivity(data:any){
     .sort((a,b)=>b.ballots-a.ballots||a.precinct.localeCompare(b.precinct,undefined,{numeric:true}));
 }
 
+function csvRows(csv:string){
+  return csv.replace(/^\uFEFF/,"").split(/\r?\n/).filter(Boolean).map(line=>{
+    const cells:string[]=[];
+    let value="",quoted=false;
+    for(let index=0;index<line.length;index++){
+      const character=line[index];
+      if(character==='"'&&quoted&&line[index+1]==='"'){value+='"';index++;}
+      else if(character==='"') quoted=!quoted;
+      else if(character===","&&!quoted){cells.push(value.trim());value="";}
+      else value+=character;
+    }
+    cells.push(value.trim());
+    return cells;
+  });
+}
+
+function browardUpdated(csv:string){
+  return csvRows(csv)[0]?.join(",").match(/AS OF\s+(.+)$/i)?.[1]||null;
+}
+
+function browardPrecinctRows(csv:string){
+  const rows=csvRows(csv);
+  const header=rows.findIndex(row=>row[0]?.toLowerCase()==="precinct");
+  if(header<0) return [];
+  return rows.slice(header+1).map(row=>{
+    const eligible=Number((row[1]||"").replaceAll(",",""))||0;
+    const mail=Number((row[2]||"").replaceAll(",",""))||0;
+    const early=Number((row[3]||"").replaceAll(",",""))||0;
+    const electionDay=Number((row[4]||"").replaceAll(",",""))||0;
+    const ballots=mail+early+electionDay;
+    return {precinct:row[0]||"",location:"",address:"",eligible,mail,early,electionDay,ballots,turnout:eligible?ballots/eligible*100:0};
+  }).filter(row=>row.precinct&&row.ballots>0).sort((a,b)=>b.ballots-a.ballots||a.precinct.localeCompare(b.precinct,undefined,{numeric:true}));
+}
+
+async function browardCsv(url:string){
+  const response=await fetch(url,{cache:"no-store",headers:{Accept:"text/csv,text/plain;q=0.9,*/*;q=0.8"}});
+  if(!response.ok) throw new Error("Broward ElectionLink feed unavailable");
+  const csv=await response.text();
+  if(!/GENERAL ELECTION/i.test(csv)) throw new Error("Broward general election feed not published");
+  return csv;
+}
+
 function unavailable(code:string,name:string,sourceUrl=source(code)){
   return {code,name,sourceUrl,status:"unavailable" as const,registered:0,ballots:0,turnout:0,mail:0,early:0,electionDay:0,dem:0,rep:0,npa:0,other:0,mailParty:emptyMethod(),earlyParty:emptyMethod(),electionDayParty:emptyMethod(),updated:null,electionName:"",electionDate:""};
 }
 
 async function browardCounty(){
   try{
-    const response=await fetch(`${browardPartyWidget}?${Date.now()}`,{cache:"no-store"});
-    if(!response.ok) throw new Error("Broward ElectionLink feed unavailable");
-    const html=await response.text();
-    if(!/GENERAL ELECTION/i.test(html)) throw new Error("Broward general election feed not published");
-
+    const [partyCsv,precinctCsv]=await Promise.all([browardCsv(browardPartyCsv),browardCsv(browardPrecinctCsv)]);
+    const rows=csvRows(partyCsv);
+    const header=rows.findIndex(row=>row[0]?.toLowerCase()==="party");
+    const partyRows=new Map(rows.slice(header+1).map(row=>[row[0]?.toLowerCase(),row]));
     const row=(party:string)=>{
-      const escaped=party.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-      const patterns=[
-        new RegExp(`>${escaped}<\\/div><\\/td><td><div[^>]*>([\\d,]+)<\\/div><\\/td><td><div[^>]*>([\\d,]+)<\\/div><\\/td><td><div[^>]*>([\\d,]+)<`,"i"),
-        new RegExp(`>${escaped}<[^>]*>[\\s\\S]{0,250}?>([\\d,]+)<[^>]*>[\\s\\S]{0,120}?>([\\d,]+)<[^>]*>[\\s\\S]{0,120}?>([\\d,]+)<`,"i")
-      ];
-      for(const pattern of patterns){
-        const match=html.match(pattern);
-        if(match) return match.slice(1,4).map(value=>Number(value.replaceAll(",",""))||0);
-      }
-      throw new Error(`Missing Broward ${party} row`);
+      const values=partyRows.get(party.toLowerCase());
+      if(!values) throw new Error(`Missing Broward ${party} row`);
+      return values.slice(1,4).map(value=>Number((value||"").replaceAll(",",""))||0);
     };
 
     const demTypes=row("Democrat");
@@ -116,12 +150,10 @@ async function browardCounty(){
     const early=Object.values(earlyParty).reduce((a,b)=>a+b,0);
     const electionDay=Object.values(electionDayParty).reduce((a,b)=>a+b,0);
     const ballots=dem+rep+npa+other;
-    const eligibleMatch=html.match(/ELIGIBLE VOTERS[\s\S]{0,140}?([\d,]{4,})/i);
-    const updatedMatch=html.match(/([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}\s+[AP]M)/);
-    const registered=eligibleMatch?Number(eligibleMatch[1].replaceAll(",","")):0;
-    const updated=updatedMatch?updatedMatch[1]:null;
+    const registered=browardPrecinctRows(precinctCsv).reduce((total,row)=>total+row.eligible,0);
+    const updated=browardUpdated(partyCsv);
 
-    return {code:"BRO",name:"Broward",sourceUrl:browardLocationWidget,status:"live" as const,registered,ballots,turnout:registered?ballots/registered*100:0,mail,early,electionDay,dem,rep,npa,other,mailParty,earlyParty,electionDayParty,updated,electionName:"2026 General Election",electionDate:"11/03/2026"};
+    return {code:"BRO",name:"Broward",sourceUrl:browardResultsPage,status:"live" as const,registered,ballots,turnout:registered?ballots/registered*100:0,mail,early,electionDay,dem,rep,npa,other,mailParty,earlyParty,electionDayParty,updated,electionName:"2026 General Election",electionDate:"11/03/2026"};
   }catch{
     return unavailable("BRO","Broward",browardResultsPage);
   }
@@ -166,6 +198,12 @@ export async function GET(request:NextRequest){
     const name=counties[code];
     if(!name) return NextResponse.json({error:"Choose a valid Florida county."},{status:400,headers:{"Cache-Control":"no-store"}});
     try{
+      if(code==="BRO"){
+        const csv=await browardCsv(browardPrecinctCsv);
+        const precincts=browardPrecinctRows(csv);
+        if(!precincts.length) return NextResponse.json({error:"Broward's official precinct table is active, but precinct rows have not been published yet."},{status:404,headers:{"Cache-Control":"public, max-age=30, s-maxage=60"}});
+        return NextResponse.json({county:{code,name},updated:browardUpdated(csv),precincts},{headers:{"Cache-Control":"public, max-age=60, s-maxage=120, stale-while-revalidate=300"}});
+      }
       const data=await generalElectionData(code);
       const precincts=precinctActivity(data);
       if(!precincts.length) return NextResponse.json({error:`${name} has not published precinct-level turnout activity yet.`},{status:404,headers:{"Cache-Control":"public, max-age=30, s-maxage=60"}});
