@@ -111,7 +111,9 @@ export default function TurnoutMap() {
       setStateCompiled(state.compiled || "");
       setRows((current) => {
         const existing = new Map(current.map((row) => [row.code, row]));
-        return (state.counties || []).map((county) => existing.get(county.code) || fallbackTurnout(county));
+        const stateRows = (state.counties || []).map((county) => existing.get(county.code) || fallbackTurnout(county));
+        const stateCodes = new Set(stateRows.map((row) => row.code));
+        return [...stateRows, ...current.filter((row) => !stateCodes.has(row.code))];
       });
       setLoading(false);
     } catch (caught) {
