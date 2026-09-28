@@ -10,6 +10,7 @@ const counties: Record<string,string> = {
 const base = "https://s3.us-east-1.amazonaws.com/turnoutquickview.electionsfl.org/data/FL";
 const source = (code:string) => `https://tqv.vrswebapps.com/?state=FL&county=${code.toLowerCase()}`;
 const browardResultsPage = "https://browardvotes.gov/results-information";
+const browardVbmDashboard = "https://my.browardvotes.gov/TEDElectionLink/AbsenteeTurnOut/dashboard/view/absturnout-party";
 const browardPartyCsv = "https://updates.electionlink.net/widgets/browardfl/2026-11-03/VoteTypeByPartyTable.csv";
 const browardPrecinctCsv = "https://updates.electionlink.net/widgets/browardfl/2026-11-03/TurnoutByPrecinctTable.csv";
 const BATCH_SIZE = 15;
@@ -121,13 +122,37 @@ async function browardCsv(url:string){
   return csv;
 }
 
+async function browardDashboard(){
+  const response=await fetch(browardVbmDashboard,{cache:"no-store",headers:{Accept:"text/html,application/xhtml+xml"}});
+  if(!response.ok) throw new Error("Broward VBM dashboard unavailable");
+  const html=await response.text();
+  if(!/2026 General Election/i.test(html)) throw new Error("Broward general election dashboard not published");
+  for(const match of html.matchAll(/<script[^>]*class="ted-ec-initial"[^>]*>([\s\S]*?)<\/script>/gi)){
+    try{
+      const option=JSON.parse(match[1])?.option;
+      const labels=option?.yAxis?.data;
+      const returned=option?.series?.find((series:any)=>series?.name==="Returned")?.data;
+      if(!Array.isArray(labels)||!Array.isArray(returned)||!labels.some((label:string)=>/Democratic Party/i.test(label))) continue;
+      const value=(pattern:RegExp)=>{
+        const index=labels.findIndex((label:string)=>pattern.test(label));
+        return index>=0?Number(returned[index]||0):0;
+      };
+      return {
+        mailParty:{dem:value(/Democratic Party/i),rep:value(/Republican Party/i),npa:value(/No Party Affiliation/i),other:value(/^Other$/i)},
+        updated:html.match(/data-ted-dashboard-asof-src="([^"]+)"/i)?.[1]||null
+      };
+    }catch{}
+  }
+  throw new Error("Broward VBM party data unavailable");
+}
+
 function unavailable(code:string,name:string,sourceUrl=source(code)){
   return {code,name,sourceUrl,status:"unavailable" as const,registered:0,ballots:0,turnout:0,mail:0,early:0,electionDay:0,dem:0,rep:0,npa:0,other:0,mailParty:emptyMethod(),earlyParty:emptyMethod(),electionDayParty:emptyMethod(),updated:null,electionName:"",electionDate:""};
 }
 
 async function browardCounty(){
   try{
-    const [partyCsv,precinctCsv]=await Promise.all([browardCsv(browardPartyCsv),browardCsv(browardPrecinctCsv)]);
+    const [dashboard,partyCsv,precinctCsv]=await Promise.all([browardDashboard(),browardCsv(browardPartyCsv),browardCsv(browardPrecinctCsv)]);
     const rows=csvRows(partyCsv);
     const header=rows.findIndex(row=>row[0]?.toLowerCase()==="party");
     const partyRows=new Map(rows.slice(header+1).map(row=>[row[0]?.toLowerCase(),row]));
@@ -137,23 +162,22 @@ async function browardCounty(){
       return values.slice(1,4).map(value=>Number((value||"").replaceAll(",",""))||0);
     };
 
-    const demTypes=row("Democrat");
-    const repTypes=row("Republican");
-    const npaTypes=row("No Party Affiliation");
-    const otherTypes=row("Other");
-    const total=(values:number[])=>values.reduce((a,b)=>a+b,0);
-    const dem=total(demTypes),rep=total(repTypes),npa=total(npaTypes),other=total(otherTypes);
-    const mailParty={dem:demTypes[0]||0,rep:repTypes[0]||0,npa:npaTypes[0]||0,other:otherTypes[0]||0};
+    const demTypes=row("Democrat"),repTypes=row("Republican"),npaTypes=row("No Party Affiliation"),otherTypes=row("Other");
+    const mailParty=dashboard.mailParty;
     const earlyParty={dem:demTypes[1]||0,rep:repTypes[1]||0,npa:npaTypes[1]||0,other:otherTypes[1]||0};
     const electionDayParty={dem:demTypes[2]||0,rep:repTypes[2]||0,npa:npaTypes[2]||0,other:otherTypes[2]||0};
     const mail=Object.values(mailParty).reduce((a,b)=>a+b,0);
     const early=Object.values(earlyParty).reduce((a,b)=>a+b,0);
     const electionDay=Object.values(electionDayParty).reduce((a,b)=>a+b,0);
+    const dem=mailParty.dem+earlyParty.dem+electionDayParty.dem;
+    const rep=mailParty.rep+earlyParty.rep+electionDayParty.rep;
+    const npa=mailParty.npa+earlyParty.npa+electionDayParty.npa;
+    const other=mailParty.other+earlyParty.other+electionDayParty.other;
     const ballots=dem+rep+npa+other;
     const registered=browardPrecinctRows(precinctCsv).reduce((total,row)=>total+row.eligible,0);
-    const updated=browardUpdated(partyCsv);
+    const updated=dashboard.updated||browardUpdated(partyCsv);
 
-    return {code:"BRO",name:"Broward",sourceUrl:browardResultsPage,status:"live" as const,registered,ballots,turnout:registered?ballots/registered*100:0,mail,early,electionDay,dem,rep,npa,other,mailParty,earlyParty,electionDayParty,updated,electionName:"2026 General Election",electionDate:"11/03/2026"};
+    return {code:"BRO",name:"Broward",sourceUrl:browardVbmDashboard,status:"live" as const,registered,ballots,turnout:registered?ballots/registered*100:0,mail,early,electionDay,dem,rep,npa,other,mailParty,earlyParty,electionDayParty,updated,electionName:"2026 General Election",electionDate:"11/03/2026"};
   }catch{
     return unavailable("BRO","Broward",browardResultsPage);
   }

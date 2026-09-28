@@ -25,7 +25,7 @@ type PrecinctSort = "precinct" | "eligible" | "mail" | "early" | "electionDay" |
 const number = new Intl.NumberFormat("en-US");
 const pct = (value: number) => (Number.isFinite(value) ? `${value.toFixed(2)}%` : "—");
 const countyGeo = "/data/florida-counties.geojson";
-const browardResults = "https://browardvotes.gov/results-information/election-results-information";
+const browardResults = "https://my.browardvotes.gov/TEDElectionLink/AbsenteeTurnOut/dashboard/view/absturnout-race";
 const floridaStats = "https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats";
 const normalize = (value: string) => value.toLowerCase().replace(/ county$/, " ").replace(/[^a-z]/g, "").trim();
 const emptyParty = (): PartySplit => ({ dem: 0, rep: 0, npa: 0, other: 0 });
