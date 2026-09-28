@@ -13,6 +13,7 @@ const browardResultsPage = "https://browardvotes.gov/results-information/electio
 const browardPartyWidget = "https://updates.electionlink.net/widgets/browardfl/2026-11-03/VoteTypeByPartyTable.html";
 const browardLocationWidget = "https://updates.electionlink.net/widgets/browardfl/2026-11-03/VoteTypeByLocationTable.html";
 const BATCH_SIZE = 15;
+const generalElectionCache=new Map<string,{expires:number;promise:Promise<any>}>();
 const sum = (obj:Record<string,number>|undefined) => Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);
 const emptyMethod = () => ({dem:0,rep:0,npa:0,other:0});
 
@@ -20,6 +21,62 @@ function isGeneralElection(summary:any){
   const name=String(summary?.ElectionName||"").toLowerCase();
   const date=String(summary?.ElectionDate||"").replaceAll("-","/");
   return name.includes("general") && /11\/0?3\/2026/.test(date);
+}
+
+async function generalElectionData(code:string){
+  const now=Date.now();
+  const cached=generalElectionCache.get(code);
+  if(cached&&cached.expires>now) return cached.promise;
+  const edgeCache={cf:{cacheTtl:120,cacheEverything:true}} as RequestInit;
+  const promise=(async()=>{
+    const indexResponse=await fetch(`${base}/${code}/index.json`,edgeCache);
+    if(!indexResponse.ok) throw new Error("index unavailable");
+    const elections=await indexResponse.json() as (string|number)[];
+    const candidates=[...elections].sort((a,b)=>Number(b)-Number(a));
+    for(const election of candidates){
+      const response=await fetch(`${base}/${code}/${election}/data.json`,edgeCache);
+      if(!response.ok) continue;
+      const candidate=await response.json() as any;
+      if(isGeneralElection(candidate?.Summary)) return candidate;
+    }
+    throw new Error("2026 general election not published");
+  })();
+  generalElectionCache.set(code,{expires:now+120000,promise});
+  try{return await promise;}catch(error){generalElectionCache.delete(code);throw error;}
+}
+
+function precinctActivity(data:any){
+  type Precinct={precinct:string;location:string;address:string;eligible:number;mail:number;early:number;electionDay:number;ballots:number;turnout:number};
+  const totals=data?.Turnout?.PrecinctType||{};
+  const splits=data?.PrecinctSplit||{};
+  const locations=data?.Location?.ElectionDay||{};
+  const aggregated=new Map<string,Precinct>();
+
+  for(const [splitKey,value] of Object.entries(totals) as [string,any][]){
+    const baseKey=splitKey.split(".")[0];
+    const meta=splits[splitKey]||splits[baseKey]||{};
+    const precinct=String(meta.Precinct||baseKey||splitKey);
+    const locationInfo=locations[String(meta.Location||"")]||{};
+    const ballotTypes=value?.BallotTypeTotals||{};
+    const mail=Number(ballotTypes.Mail||0);
+    const early=Number(ballotTypes.EarlyVoting||0);
+    const electionDay=Number(ballotTypes.ElectionDay||0);
+    const eligible=Number(value?.EligibleVoters||0);
+    const existing=aggregated.get(precinct)||{precinct,location:String(locationInfo.Name||""),address:String(locationInfo.Address||""),eligible:0,mail:0,early:0,electionDay:0,ballots:0,turnout:0};
+    existing.eligible+=eligible;
+    existing.mail+=mail;
+    existing.early+=early;
+    existing.electionDay+=electionDay;
+    existing.ballots+=mail+early+electionDay;
+    if(!existing.location&&locationInfo.Name) existing.location=String(locationInfo.Name);
+    if(!existing.address&&locationInfo.Address) existing.address=String(locationInfo.Address);
+    aggregated.set(precinct,existing);
+  }
+
+  return [...aggregated.values()]
+    .map(row=>({...row,turnout:row.eligible?row.ballots/row.eligible*100:0}))
+    .filter(row=>row.ballots>0)
+    .sort((a,b)=>b.ballots-a.ballots||a.precinct.localeCompare(b.precinct,undefined,{numeric:true}));
 }
 
 function unavailable(code:string,name:string,sourceUrl=source(code)){
@@ -72,18 +129,7 @@ async function browardCounty(){
 
 async function county(code:string,name:string){
   try{
-    const indexResponse=await fetch(`${base}/${code}/index.json?${Date.now()}`,{cache:"no-store"});
-    if(!indexResponse.ok) throw new Error("index unavailable");
-    const elections=await indexResponse.json() as (string|number)[];
-    const candidates=[...elections].sort((a,b)=>Number(b)-Number(a));
-    let j:any=null;
-    for(const election of candidates){
-      const r=await fetch(`${base}/${code}/${election}/data.json?${Date.now()}`,{cache:"no-store"});
-      if(!r.ok) continue;
-      const candidate=await r.json() as any;
-      if(isGeneralElection(candidate?.Summary)){j=candidate;break;}
-    }
-    if(!j) throw new Error("2026 general election not published");
+    const j=await generalElectionData(code);
 
     const p=j.Turnout?.PartyType||{};
     const days=Object.values(j.Turnout?.DateType||{}) as Record<string,number>[];
@@ -114,6 +160,20 @@ async function county(code:string,name:string){
 }
 
 export async function GET(request:NextRequest){
+  const view=request.nextUrl.searchParams.get("view");
+  if(view==="precincts"){
+    const code=String(request.nextUrl.searchParams.get("county")||"").toUpperCase();
+    const name=counties[code];
+    if(!name) return NextResponse.json({error:"Choose a valid Florida county."},{status:400,headers:{"Cache-Control":"no-store"}});
+    try{
+      const data=await generalElectionData(code);
+      const precincts=precinctActivity(data);
+      if(!precincts.length) return NextResponse.json({error:`${name} has not published precinct-level turnout activity yet.`},{status:404,headers:{"Cache-Control":"public, max-age=30, s-maxage=60"}});
+      return NextResponse.json({county:{code,name},updated:data.Summary?.LastUpdatedTime||null,precincts},{headers:{"Cache-Control":"public, max-age=60, s-maxage=120, stale-while-revalidate=300"}});
+    }catch{
+      return NextResponse.json({error:`${name} precinct data is not available through the live TQV feed yet.`},{status:404,headers:{"Cache-Control":"public, max-age=30, s-maxage=60"}});
+    }
+  }
   const batchRaw=Number(request.nextUrl.searchParams.get("batch")||0);
   const batch=Number.isFinite(batchRaw)?Math.max(0,Math.floor(batchRaw)):0;
   const entries=Object.entries(counties).slice(batch*BATCH_SIZE,(batch+1)*BATCH_SIZE);
