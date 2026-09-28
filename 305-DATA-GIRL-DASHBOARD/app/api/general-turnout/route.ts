@@ -222,7 +222,10 @@ export async function GET(request:NextRequest){
       if(!precincts.length) return NextResponse.json({error:`${name} has not published precinct-level turnout activity yet.`},{status:404,headers:{"Cache-Control":"public, max-age=30, s-maxage=60"}});
       return NextResponse.json({county:{code,name},updated:data.Summary?.LastUpdatedTime||null,precincts},{headers:{"Cache-Control":"public, max-age=60, s-maxage=120, stale-while-revalidate=300"}});
     }catch{
-      return NextResponse.json({error:`${name} precinct data is not available through the live TQV feed yet.`},{status:404,headers:{"Cache-Control":"public, max-age=30, s-maxage=60"}});
+      const error=code==="BRO"
+        ? "Broward's official turnout dashboard is active, but its precinct table has not published precinct rows yet."
+        : `${name} precinct data is not available through the live TQV feed yet.`;
+      return NextResponse.json({error},{status:404,headers:{"Cache-Control":"public, max-age=30, s-maxage=60"}});
     }
   }
   const batchRaw=Number(request.nextUrl.searchParams.get("batch")||0);
