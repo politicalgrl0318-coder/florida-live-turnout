@@ -31,6 +31,7 @@ export default function GeneralLayout({ children }: { children: React.ReactNode 
     <nav aria-label="General Election dashboard sections" style={{background:"#08111f",color:"white",display:"flex",justifyContent:"center",gap:"8px",padding:"9px 14px",fontFamily:"Arial, Helvetica, sans-serif",fontSize:"12px",fontWeight:800}}>
       <a href="/general" style={{color:"white",textDecoration:"none",padding:"7px 11px",borderRadius:"999px",border:"1px solid #ffffff38"}}>Dashboard</a>
       <a href="/general/map" style={{color:"#07151c",background:"#5ed0cf",textDecoration:"none",padding:"7px 11px",borderRadius:"999px"}}>Interactive Turnout Map</a>
+      <a href="/general/districts" style={{color:"white",textDecoration:"none",padding:"7px 11px",borderRadius:"999px",border:"1px solid #ffffff38"}}>Districts & Maps</a>
     </nav>
     {children}
   </>;
