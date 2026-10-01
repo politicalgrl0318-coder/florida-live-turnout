@@ -10,10 +10,6 @@ type DistrictRow = {
   district:string;
   sent:number;
   returned:number;
-  demSent:number;
-  repSent:number;
-  npaSent:number;
-  otherSent:number;
   demReturned:number;
   repReturned:number;
   npaReturned:number;
@@ -28,16 +24,11 @@ type DistrictPayload = {
   electionDate:string;
   electionNumber:string;
   dataThrough:string;
-  sentThrough:string;
   complete:boolean;
-  coverage:{
-    countiesLoaded:number;
-    countiesExpected:number;
-    countyFiles:Array<{code:string;name:string;records:number;sent:number;returned:number;throughReturnDate:string;throughDeliveryDate:string}>;
-    note:string;
-  };
-  districts:Record<Chamber,DistrictRow[]>;
-  definitions:{sent:string;returned:string;returnRate:string};
+  coverage:{countiesLoaded:number;countiesExpected:number;note:string};
+  statewide:{provided:number;returned:number;sent:number;demReturned:number;repReturned:number;npaReturned:number;otherReturned:number};
+  files:Record<Chamber,string[]>;
+  definitions:{provided:string;returned:string;sent:string;returnRate:string};
 };
 type GeoFeature = {
   type:"Feature";
@@ -96,9 +87,11 @@ export default function DistrictsPage(){
   const[chamber,setChamber]=useState<Chamber>("congressional");
   const[metric,setMetric]=useState<Metric>("margin");
   const[data,setData]=useState<DistrictPayload|null>(null);
+  const[rows,setRows]=useState<DistrictRow[]>([]);
   const[boundaries,setBoundaries]=useState<GeoCollection|null>(null);
   const[dataError,setDataError]=useState("");
   const[mapError,setMapError]=useState("");
+  const[rowsLoading,setRowsLoading]=useState(true);
   const[selected,setSelected]=useState("");
   const[query,setQuery]=useState("");
   const[sort,setSort]=useState<SortKey>("returned");
@@ -106,10 +99,22 @@ export default function DistrictsPage(){
 
   useEffect(()=>{
     fetch("/data/general-districts.json",{cache:"no-store"})
-      .then(r=>{if(!r.ok)throw new Error("District data file unavailable");return r.json()})
+      .then(r=>{if(!r.ok)throw new Error("District metadata unavailable");return r.json()})
       .then((j:DistrictPayload)=>setData(j))
-      .catch(e=>setDataError(e instanceof Error?e.message:"District data unavailable"));
+      .catch(e=>setDataError(e instanceof Error?e.message:"District metadata unavailable"));
   },[]);
+
+  useEffect(()=>{
+    if(!data)return;
+    setRowsLoading(true);setDataError("");
+    Promise.all((data.files[chamber]||[]).map(file=>fetch(file,{cache:"no-store"}).then(r=>{
+      if(!r.ok)throw new Error("District data file unavailable");
+      return r.json() as Promise<DistrictRow[]>;
+    })))
+      .then(parts=>setRows(parts.flat().sort((a,b)=>Number(a.district)-Number(b.district))))
+      .catch(e=>setDataError(e instanceof Error?e.message:"District data unavailable"))
+      .finally(()=>setRowsLoading(false));
+  },[data,chamber]);
 
   useEffect(()=>{
     setBoundaries(null);setMapError("");
@@ -122,7 +127,6 @@ export default function DistrictsPage(){
       .catch(e=>setMapError(e instanceof Error?e.message:"Boundary map unavailable"));
   },[chamber]);
 
-  const rows=data?.districts[chamber]??[];
   const rowMap=useMemo(()=>new Map(rows.map(r=>[String(Number(r.district)),r])),[rows]);
   useEffect(()=>{
     if(rows.length && !rowMap.has(String(Number(selected)))) setSelected(rows[0].district);
@@ -152,8 +156,7 @@ export default function DistrictsPage(){
     }));
   },[boundaries]);
 
-  const totals=rows.reduce((a,r)=>({sent:a.sent+r.sent,returned:a.returned+r.returned,dem:a.dem+r.demReturned,rep:a.rep+r.repReturned,npa:a.npa+r.npaReturned,other:a.other+r.otherReturned}),{sent:0,returned:0,dem:0,rep:0,npa:0,other:0});
-
+  const statewide=data?.statewide;
   function chooseSort(next:SortKey){
     if(sort===next)setAscending(!ascending);
     else{setSort(next);setAscending(next==="district")}
@@ -164,17 +167,13 @@ export default function DistrictsPage(){
     <header className={styles.hero}>
       <div className={styles.eyebrow}><i/> DISTRICT RESULTS + MAPS</div>
       <h1>Florida 2026 district turnout</h1>
-      <p>Vote-by-mail activity by congressional, Florida House and Florida Senate district. Missing county voter files are never treated as zero.</p>
-      <div className={styles.meta}><span>Election 49894</span><b>•</b><span>General Election: Nov. 3</span><b>•</b><span>Returns through {data?.dataThrough||"loading…"}</span></div>
+      <p>Vote-by-mail activity by congressional, Florida House and Florida Senate district, built from all 67 county voter-level VBM files.</p>
+      <div className={styles.meta}><span>Election 49894</span><b>•</b><span>General Election: Nov. 3</span><b>•</b><span>Returns through {data?.dataThrough||"loading…"}</span><b>•</b><span>{data?data.coverage.countiesLoaded+"/67 counties loaded":"loading…"}</span></div>
     </header>
 
     <section className={styles.content}>
       {dataError&&<div className={styles.error}><b>District feed issue:</b> {dataError}</div>}
-      {data&&!data.complete&&<div className={styles.warning}>
-        <strong>PARTIAL DISTRICT DATA — {data.coverage.countiesLoaded}/{data.coverage.countiesExpected} county voter files loaded</strong>
-        <p>{data.coverage.note}</p>
-        <div>{data.coverage.countyFiles.map(c=><span key={c.code}>{c.name}: {number.format(c.returned)} returns</span>)}</div>
-      </div>}
+      {data&&!data.complete&&<div className={styles.warning}><strong>PARTIAL DISTRICT DATA — {data.coverage.countiesLoaded}/{data.coverage.countiesExpected} county voter files loaded</strong><p>{data.coverage.note}</p></div>}
 
       <div className={styles.controls}>
         <div className={styles.segment} aria-label="Choose district type">
@@ -184,20 +183,20 @@ export default function DistrictsPage(){
       </div>
 
       <div className={styles.cards}>
-        <article><span>VBM sent</span><strong>{number.format(totals.sent)}</strong><small>Loaded voter files only</small></article>
-        <article><span>VBM returned</span><strong>{number.format(totals.returned)}</strong><small>{totals.sent?pct(totals.returned/totals.sent*100):"—"} return rate</small></article>
-        <article><span>DEM returns</span><strong className={styles.dem}>{number.format(totals.dem)}</strong><small>{totals.returned?pct(totals.dem/totals.returned*100):"—"} of loaded returns</small></article>
-        <article><span>REP returns</span><strong className={styles.rep}>{number.format(totals.rep)}</strong><small>{totals.returned?pct(totals.rep/totals.returned*100):"—"} of loaded returns</small></article>
+        <article><span>VBM sent / provided</span><strong>{statewide?number.format(statewide.sent):"—"}</strong><small>{statewide?number.format(statewide.provided)+" still outstanding":"Statewide package"}</small></article>
+        <article><span>VBM returned</span><strong>{statewide?number.format(statewide.returned):"—"}</strong><small>{statewide&&statewide.sent?pct(statewide.returned/statewide.sent*100):"—"} statewide return rate</small></article>
+        <article><span>DEM returns</span><strong className={styles.dem}>{statewide?number.format(statewide.demReturned):"—"}</strong><small>{statewide&&statewide.returned?pct(statewide.demReturned/statewide.returned*100):"—"} of statewide returns</small></article>
+        <article><span>REP returns</span><strong className={styles.rep}>{statewide?number.format(statewide.repReturned):"—"}</strong><small>{statewide&&statewide.returned?pct(statewide.repReturned/statewide.returned*100):"—"} of statewide returns</small></article>
       </div>
 
       <section className={styles.mapCard}>
-        <div className={styles.mapHead}><div><h2>{config.label}</h2><p>{metricLabel(metric)} • gray means the district has no loaded voter-level records yet.</p></div><a href={config.sourceUrl} target="_blank" rel="noreferrer">Official district boundaries ↗</a></div>
+        <div className={styles.mapHead}><div><h2>{config.label}</h2><p>{metricLabel(metric)} • district totals come from the county voter-level files.</p></div><a href={config.sourceUrl} target="_blank" rel="noreferrer">Official district boundaries ↗</a></div>
         {mapError?<div className={styles.error}>{mapError}</div>:<div className={styles.mapGrid}>
           <div className={styles.mapWrap}>
-            {!boundaries&&<div className={styles.loading}>Loading official district boundaries…</div>}
-            {boundaries&&<svg viewBox="0 0 820 610" role="img" aria-label={config.label+" vote-by-mail map"}>
+            {(!boundaries||rowsLoading)&&<div className={styles.loading}>Loading statewide district data…</div>}
+            {boundaries&&!rowsLoading&&<svg viewBox="0 0 820 610" role="img" aria-label={config.label+" vote-by-mail map"}>
               {mapPaths.map(p=>{const row=rowMap.get(p.district);const active=p.district===selected;return <g key={p.district||p.d}>
-                <path d={p.d} fill={fillFor(row,metric,maxValue)} stroke={active?"#101a2b":"#ffffff"} strokeWidth={active?3:1.1} tabIndex={0} role="button" onMouseEnter={()=>setSelected(p.district)} onFocus={()=>setSelected(p.district)} onClick={()=>setSelected(p.district)} aria-label={(config.short+"-"+p.district)+": "+(row?marginLabel(row):"no loaded data")}/>
+                <path d={p.d} fill={fillFor(row,metric,maxValue)} stroke={active?"#101a2b":"#ffffff"} strokeWidth={active?3:1.1} tabIndex={0} role="button" onMouseEnter={()=>setSelected(p.district)} onFocus={()=>setSelected(p.district)} onClick={()=>setSelected(p.district)} aria-label={(config.short+"-"+p.district)+": "+(row?marginLabel(row):"no assigned records")}/>
                 {chamber!=="house"&&p.centroid.every(Number.isFinite)&&<text x={p.centroid[0]} y={p.centroid[1]}>{p.district}</text>}
               </g>})}
             </svg>}
@@ -206,20 +205,21 @@ export default function DistrictsPage(){
             <span>Selected district</span><h3>{selected?config.short+"-"+selected:"—"}</h3>
             {selectedRow?<><strong className={selectedRow.drReturnMargin>=0?styles.dem:styles.rep}>{marginLabel(selectedRow)}</strong><div className={styles.detailGrid}>
               <div><small>VBM sent</small><b>{number.format(selectedRow.sent)}</b></div><div><small>Returned</small><b>{number.format(selectedRow.returned)}</b></div><div><small>Return rate</small><b>{pct(selectedRow.returnRate)}</b></div><div><small>DEM</small><b>{number.format(selectedRow.demReturned)}</b></div><div><small>REP</small><b>{number.format(selectedRow.repReturned)}</b></div><div><small>NPA</small><b>{number.format(selectedRow.npaReturned)}</b></div>
-            </div></>:<p>No loaded voter-level records for this district yet. It is not being counted as zero.</p>}
+            </div></>:<p>No usable district assignment is loaded for this boundary.</p>}
           </aside>
         </div>}
-        <div className={styles.legend}><span><i className={styles.blue}/> Democratic return margin</span><span><i className={styles.red}/> Republican return margin</span><span><i className={styles.gray}/> No loaded district data</span></div>
+        <div className={styles.legend}><span><i className={styles.blue}/> Democratic return margin</span><span><i className={styles.red}/> Republican return margin</span><span><i className={styles.gray}/> Even / no assigned records</span></div>
       </section>
 
       <section className={styles.tableCard}>
-        <div className={styles.tableHead}><div><h2>{config.label} table</h2><p>Sortable VBM activity from the voter-level county files currently loaded.</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={"Search "+config.short+"…"}/></div>
+        <div className={styles.tableHead}><div><h2>{config.label} table</h2><p>{rowsLoading?"Loading statewide district records…":"All "+config.count+" districts • sortable VBM activity"}</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={"Search "+config.short+"…"}/></div>
         <div className={styles.tableWrap}><table><thead><tr><th><SortButton k="district">District</SortButton></th><th><SortButton k="sent">VBM sent</SortButton></th><th><SortButton k="returned">Returned</SortButton></th><th><SortButton k="rate">Return rate</SortButton></th><th><SortButton k="dem">DEM</SortButton></th><th><SortButton k="rep">REP</SortButton></th><th><SortButton k="npa">NPA</SortButton></th><th>Other</th><th><SortButton k="margin">D–R margin</SortButton></th></tr></thead><tbody>{filtered.map(r=><tr key={r.district} onClick={()=>setSelected(r.district)}><td><b>{config.short}-{r.district}</b></td><td>{number.format(r.sent)}</td><td>{number.format(r.returned)}</td><td>{pct(r.returnRate)}</td><td className={styles.dem}>{number.format(r.demReturned)}</td><td className={styles.rep}>{number.format(r.repReturned)}</td><td>{number.format(r.npaReturned)}</td><td>{number.format(r.otherReturned)}</td><td className={r.drReturnMargin>=0?styles.dem:styles.rep}>{marginLabel(r)}</td></tr>)}</tbody></table></div>
       </section>
 
       <section className={styles.method}>
-        <h2>Method and sources</h2><p><b>VBM sent/provided</b> counts voter-file records with a Delivery Date. <b>Returned</b> counts records with a BallotReturnDate. Return rate is returned ÷ sent. Current district assignments come directly from the county VBM files; map geometry comes from Florida’s official redistricting boundary services.</p>
-        <p>Authorized voter-level county files are required for statewide district aggregation. Until all 67 are loaded, the page explicitly reports partial coverage and never substitutes zero for missing counties.</p>
+        <h2>Method and sources</h2>
+        <p><b>Provided / outstanding</b> uses voter-file <code>VoteByMail</code> status <b>P</b>. <b>Returned / voted VBM</b> uses status <b>V</b>. <b>VBM sent / provided</b> is P + V, and return rate is V ÷ (P + V). This mirrors the state’s public “Provided (Not Yet Returned)” and “Voted Vote-by-Mail” categories more closely than relying on date fields alone.</p>
+        <p>District assignments come directly from each county VBM record. Records with a blank or zero district assignment are excluded from that district table but remain included in the statewide cards. Map geometry comes from Florida’s official redistricting boundary services.</p>
         <div><a href="https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats" target="_blank" rel="noreferrer">Florida Division of Elections VBM statistics ↗</a><a href={config.sourceUrl} target="_blank" rel="noreferrer">Florida district maps ↗</a></div>
       </section>
     </section>
