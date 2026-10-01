@@ -191,7 +191,7 @@ export default function DistrictsPage(){
 
       <section className={styles.mapCard}>
         <div className={styles.mapHead}><div><h2>{config.label}</h2><p>{metricLabel(metric)} • district totals come from the county voter-level files.</p></div><a href={config.sourceUrl} target="_blank" rel="noreferrer">Official district boundaries ↗</a></div>
-        {mapError?<div className={styles.error}>{mapError}</div>:<div className={styles.mapGrid}>
+        {!mapError&&<div className={styles.mapGrid}>
           <div className={styles.mapWrap}>
             {(!boundaries||rowsLoading)&&<div className={styles.loading}>Loading statewide district data…</div>}
             {boundaries&&!rowsLoading&&<svg viewBox="0 0 820 610" role="img" aria-label={config.label+" vote-by-mail map"}>
