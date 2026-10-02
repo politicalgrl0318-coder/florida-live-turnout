@@ -61,7 +61,8 @@ export default function GeneralElection(){
       if(responses.some(r=>!r.ok)) throw new Error("One or more county turnout feeds did not respond.");
       const payloads=await Promise.all(responses.map(async r=>await r.json() as TurnoutPayload));
       const first=payloads.find(p=>p.counties.length)||payloads[0];
-      setTurnoutData({generatedAt:payloads.map(p=>p.generatedAt).sort().at(-1)||new Date().toISOString(),electionName:first?.electionName||"2026 General Election",electionDate:first?.electionDate||"11/03/2026",counties:payloads.flatMap(p=>p.counties)});
+      const counties=[...new Map(payloads.flatMap(p=>p.counties).map(c=>[c.code,c])).values()];
+      setTurnoutData({generatedAt:payloads.map(p=>p.generatedAt).sort().at(-1)||new Date().toISOString(),electionName:first?.electionName||"2026 General Election",electionDate:first?.electionDate||"11/03/2026",counties});
     }catch(e){setTurnoutError(e instanceof Error?e.message:"Unable to load county turnout data.")}
     finally{setTurnoutLoading(false)}
   }
@@ -99,12 +100,12 @@ export default function GeneralElection(){
 
   const liveTurnout=turnoutData?.counties.filter(c=>c.status==="live")??[];
   const turnoutTotals=liveTurnout.reduce((a,c)=>({registered:a.registered+c.registered,ballots:a.ballots+c.ballots,mail:a.mail+c.mail,early:a.early+c.early,electionDay:a.electionDay+c.electionDay,dem:a.dem+c.dem,rep:a.rep+c.rep,npa:a.npa+c.npa,other:a.other+c.other}),{registered:0,ballots:0,mail:0,early:0,electionDay:0,dem:0,rep:0,npa:0,other:0});
-  const liveNames=new Set(liveTurnout.map(c=>c.name.toLowerCase()));
-  const stateFallback=(data?.counties??[]).filter(c=>!liveNames.has(c.name.toLowerCase())&&(c.voted.total>0||c.early.total>0));
-  const stateReportingCount=(data?.counties??[]).filter(c=>c.voted.total>0||c.early.total>0).length;
+  const liveCodes=new Set(liveTurnout.map(c=>c.code));
+  const stateFallback=(data?.counties??[]).filter(c=>!liveCodes.has(c.code)&&(c.voted.total>0||c.early.total>0));
+  const stateReportingCount=new Set((data?.counties??[]).filter(c=>c.voted.total>0||c.early.total>0).map(c=>c.code)).size;
   const fallbackTotals=stateFallback.reduce((a,c)=>({ballots:a.ballots+c.voted.total+c.early.total,mail:a.mail+c.voted.total,early:a.early+c.early.total,dem:a.dem+c.voted.dem+c.early.dem,rep:a.rep+c.voted.rep+c.early.rep,npa:a.npa+c.voted.npa+c.early.npa,other:a.other+c.voted.other+c.early.other}),{ballots:0,mail:0,early:0,dem:0,rep:0,npa:0,other:0});
   const currentTotals={...turnoutTotals,ballots:turnoutTotals.ballots+fallbackTotals.ballots,mail:turnoutTotals.mail+fallbackTotals.mail,early:turnoutTotals.early+fallbackTotals.early,dem:turnoutTotals.dem+fallbackTotals.dem,rep:turnoutTotals.rep+fallbackTotals.rep,npa:turnoutTotals.npa+fallbackTotals.npa,other:turnoutTotals.other+fallbackTotals.other};
-  const currentReportingCount=liveTurnout.length+stateFallback.length;
+  const currentReportingCount=new Set([...liveTurnout.map(c=>c.code),...stateFallback.map(c=>c.code)]).size;
   const turnoutPartyTotal=currentTotals.dem+currentTotals.rep+currentTotals.npa+currentTotals.other||1;
   const turnoutMargin=currentTotals.dem-currentTotals.rep;
 
