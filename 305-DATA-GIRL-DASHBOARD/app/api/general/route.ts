@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import snapshot from "../../../public/data/general-official-snapshot.json";
 
 const STATS_URL = "https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats";
 const REPORTS_URL = "https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicReports";
@@ -73,8 +74,8 @@ function sum(rows:CountyRow[], key:"provided"|"voted"|"early"){
 export async function GET(){
   try{
     const [statsRes,reportsRes]=await Promise.all([
-      fetch(STATS_URL,{cache:"no-store",headers:{"User-Agent":"305DataGirl/1.0"}}),
-      fetch(REPORTS_URL,{cache:"no-store",headers:{"User-Agent":"305DataGirl/1.0"}})
+      fetch(STATS_URL,{cache:"no-store",headers:{"User-Agent":"305DataGirl/1.0"},signal:AbortSignal.timeout(8000)}),
+      fetch(REPORTS_URL,{cache:"no-store",headers:{"User-Agent":"305DataGirl/1.0"},signal:AbortSignal.timeout(8000)})
     ]);
     if(!statsRes.ok) throw new Error(`Florida stats returned ${statsRes.status}`);
     const statsHtml=await statsRes.text();
@@ -95,6 +96,6 @@ export async function GET(){
       counties:rows
     },{headers:{"Cache-Control":"public, max-age=60, s-maxage=180, stale-while-revalidate=300"}});
   }catch(error){
-    return NextResponse.json({error:error instanceof Error?error.message:"Unable to load Florida general-election activity."},{status:502,headers:{"Cache-Control":"no-store"}});
+    return NextResponse.json({...snapshot, savedSnapshot:true, reportingNote:"Showing the verified October 3, 8:04 AM ET compilation while the live state source is unavailable."},{headers:{"Cache-Control":"no-store"}});
   }
 }

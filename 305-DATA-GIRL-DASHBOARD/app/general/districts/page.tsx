@@ -8,6 +8,11 @@ type Chamber = "congressional" | "house" | "senate";
 type Metric = "margin" | "returned" | "rate" | "sent";
 type DistrictRow = {
   district:string;
+  demSent:number;repSent:number;npaSent:number;otherSent:number;
+  demRate:number;repRate:number;npaRate:number;otherRate:number;
+  overallRank:number;demRank:number;repRank:number;npaRank:number;otherRank:number;
+  overallPeerRank:number|null;demPeerRank:number|null;repPeerRank:number|null;npaPeerRank:number|null;otherPeerRank:number|null;
+  changeReturned:number;changeRate:number;changeMargin:number;npaShare:number;
   sent:number;
   returned:number;
   demReturned:number;
@@ -20,6 +25,7 @@ type DistrictRow = {
 };
 type DistrictPayload = {
   generatedAt:string;
+  snapshotCompiled:string;baselineDate:string;sourcePackage:string;excludedCongressional:{sent:number;returned:number};
   election:string;
   electionDate:string;
   electionNumber:string;
@@ -168,7 +174,7 @@ export default function DistrictsPage(){
       <div className={styles.eyebrow}><i/> DISTRICT RESULTS + MAPS</div>
       <h1>Florida 2026 district turnout</h1>
       <p>Vote-by-mail activity by congressional, Florida House and Florida Senate district, built from all 67 county voter-level VBM files.</p>
-      <div className={styles.meta}><span>Election 49894</span><b>•</b><span>General Election: Nov. 3</span><b>•</b><span>Returns through {data?.dataThrough||"loading…"}</span><b>•</b><span>{data?data.coverage.countiesLoaded+"/67 counties loaded":"loading…"}</span></div>
+      <div className={styles.meta}><span>Election 49894</span><b>•</b><span>General Election: Nov. 3</span><b>•</b><span>Voter file: {data?.snapshotCompiled||"loading…"} • activity through {data?.dataThrough||"loading…"}</span><b>•</b><span>{data?data.coverage.countiesLoaded+"/67 counties loaded":"loading…"}</span></div>
     </header>
 
     <section className={styles.content}>
@@ -189,6 +195,7 @@ export default function DistrictsPage(){
         <article><span>REP returns</span><strong className={styles.rep}>{statewide?number.format(statewide.repReturned):"—"}</strong><small>{statewide&&statewide.returned?pct(statewide.repReturned/statewide.returned*100):"—"} of statewide returns</small></article>
       </div>
 
+      <section className={styles.method}><h2>Snapshot and reporting status</h2><p>District data uses {data?.sourcePackage||"the voter-level package"}. Statewide/county live data on the Dashboard is separately timestamped. Daily district changes compare {data?.baselineDate||"the prior package"}.</p><p>{data?number.format(data.excludedCongressional.returned):"—"} returned ballots and {data?number.format(data.excludedCongressional.sent):"—"} P + V records have no valid congressional assignment and remain in statewide totals. Rankings use unrounded rates with shared ranks for ties.</p><p>Zero or low reported returns can reflect processing and reporting timing. The October 3 official compilation shows Pinellas at 0.26% returned versus Pasco at 12.25%. Treat low district rankings as reported mail-return activity, not a turnout forecast.</p></section>
       <section className={styles.mapCard}>
         <div className={styles.mapHead}><div><h2>{config.label}</h2><p>{metricLabel(metric)} • district totals come from the county voter-level files.</p></div><a href={config.sourceUrl} target="_blank" rel="noreferrer">Official district boundaries ↗</a></div>
         {!mapError&&<div className={styles.mapGrid}>
@@ -204,7 +211,7 @@ export default function DistrictsPage(){
           <aside className={styles.detail}>
             <span>Selected district</span><h3>{selected?config.short+"-"+selected:"—"}</h3>
             {selectedRow?<><strong className={selectedRow.drReturnMargin>=0?styles.dem:styles.rep}>{marginLabel(selectedRow)}</strong><div className={styles.detailGrid}>
-              <div><small>VBM sent</small><b>{number.format(selectedRow.sent)}</b></div><div><small>Returned</small><b>{number.format(selectedRow.returned)}</b></div><div><small>Return rate</small><b>{pct(selectedRow.returnRate)}</b></div><div><small>DEM</small><b>{number.format(selectedRow.demReturned)}</b></div><div><small>REP</small><b>{number.format(selectedRow.repReturned)}</b></div><div><small>NPA</small><b>{number.format(selectedRow.npaReturned)}</b></div>
+              <div><small>VBM sent</small><b>{number.format(selectedRow.sent)}</b></div><div><small>Returned</small><b>{number.format(selectedRow.returned)}</b></div><div><small>Return rate</small><b>{pct(selectedRow.returnRate)}</b></div><div><small>DEM</small><b>{number.format(selectedRow.demReturned)}</b></div><div><small>REP</small><b>{number.format(selectedRow.repReturned)}</b></div><div><small>NPA</small><b>{number.format(selectedRow.npaReturned)}</b></div><div><small>Daily return change</small><b>{selectedRow.changeReturned>=0?"+":""}{number.format(selectedRow.changeReturned)}</b></div><div><small>Overall rate rank</small><b>#{selectedRow.overallRank} / {config.count}</b></div>
             </div></>:<p>No usable district assignment is loaded for this boundary.</p>}
           </aside>
         </div>}
@@ -213,9 +220,10 @@ export default function DistrictsPage(){
 
       <section className={styles.tableCard}>
         <div className={styles.tableHead}><div><h2>{config.label} table</h2><p>{rowsLoading?"Loading statewide district records…":"All "+config.count+" districts • sortable VBM activity"}</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={"Search "+config.short+"…"}/></div>
-        <div className={styles.tableWrap}><table><thead><tr><th><SortButton k="district">District</SortButton></th><th><SortButton k="sent">VBM sent</SortButton></th><th><SortButton k="returned">Returned</SortButton></th><th><SortButton k="rate">Return rate</SortButton></th><th><SortButton k="dem">DEM</SortButton></th><th><SortButton k="rep">REP</SortButton></th><th><SortButton k="npa">NPA</SortButton></th><th>Other</th><th><SortButton k="margin">D–R margin</SortButton></th></tr></thead><tbody>{filtered.map(r=><tr key={r.district} onClick={()=>setSelected(r.district)}><td><b>{config.short}-{r.district}</b></td><td>{number.format(r.sent)}</td><td>{number.format(r.returned)}</td><td>{pct(r.returnRate)}</td><td className={styles.dem}>{number.format(r.demReturned)}</td><td className={styles.rep}>{number.format(r.repReturned)}</td><td>{number.format(r.npaReturned)}</td><td>{number.format(r.otherReturned)}</td><td className={r.drReturnMargin>=0?styles.dem:styles.rep}>{marginLabel(r)}</td></tr>)}</tbody></table></div>
+        <div className={styles.tableWrap}><table><thead><tr><th><SortButton k="district">District</SortButton></th><th><SortButton k="sent">VBM sent</SortButton></th><th><SortButton k="returned">Returned</SortButton></th><th><SortButton k="rate">Return rate</SortButton></th><th><SortButton k="dem">DEM</SortButton></th><th><SortButton k="rep">REP</SortButton></th><th><SortButton k="npa">NPA</SortButton></th><th>Other</th><th><SortButton k="margin">D–R margin</SortButton></th><th>Daily returns</th><th>Overall rank</th><th>DEM rate / rank</th><th>REP rate / rank</th><th>NPA rate / rank</th><th>Other rate / rank</th></tr></thead><tbody>{filtered.map(r=><tr key={r.district} onClick={()=>setSelected(r.district)}><td><b>{config.short}-{r.district}</b></td><td>{number.format(r.sent)}</td><td>{number.format(r.returned)}</td><td>{pct(r.returnRate)}</td><td className={styles.dem}>{number.format(r.demReturned)}</td><td className={styles.rep}>{number.format(r.repReturned)}</td><td>{number.format(r.npaReturned)}</td><td>{number.format(r.otherReturned)}</td><td className={r.drReturnMargin>=0?styles.dem:styles.rep}>{marginLabel(r)}</td><td>{r.changeReturned>=0?"+":""}{number.format(r.changeReturned)}</td><td>#{r.overallRank}</td><td>{pct(r.demRate)} / #{r.demRank}</td><td>{pct(r.repRate)} / #{r.repRank}</td><td>{pct(r.npaRate)} / #{r.npaRank}</td><td>{pct(r.otherRate)} / #{r.otherRank}</td></tr>)}</tbody></table></div>
       </section>
 
+      {chamber==="congressional"&&<section className={styles.tableCard}><div className={styles.tableHead}><div><h2>Republican-held district-number peer rankings</h2><p>20 current incumbent district numbers: 1–8, 11–13, 15–19, 21 and 26–28. This group does not establish partisan lean under the new 2026 boundaries. Rate ranks use each party’s own P + V pool.</p></div></div><div className={styles.tableWrap}><table><thead><tr><th>District</th><th>Overall</th><th>DEM</th><th>REP</th><th>NPA</th><th>Other</th></tr></thead><tbody>{rows.filter(r=>r.overallPeerRank!==null).sort((a,b)=>(a.overallPeerRank||0)-(b.overallPeerRank||0)).map(r=><tr key={r.district}><td>FL-{r.district}</td><td>#{r.overallPeerRank}</td><td>#{r.demPeerRank}</td><td>#{r.repPeerRank}</td><td>#{r.npaPeerRank}</td><td>#{r.otherPeerRank}</td></tr>)}</tbody></table></div></section>}
       <section className={styles.method}>
         <h2>Method and sources</h2>
         <p><b>Provided / outstanding</b> uses voter-file <code>VoteByMail</code> status <b>P</b>. <b>Returned / voted VBM</b> uses status <b>V</b>. <b>VBM sent / provided</b> is P + V, and return rate is V ÷ (P + V). This mirrors the state’s public “Provided (Not Yet Returned)” and “Voted Vote-by-Mail” categories more closely than relying on date fields alone.</p>

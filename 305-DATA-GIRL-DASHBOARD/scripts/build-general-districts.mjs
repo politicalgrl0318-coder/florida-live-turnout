@@ -6,7 +6,7 @@ const sourceDir=process.argv[2]||process.env.VBM_DIR||"./vbm";
 const outputDir=process.argv[3]||"./public/data";
 const electionNumber="49894";
 const files=fs.readdirSync(sourceDir).filter(name=>new RegExp("^[A-Z]{3}_VBM_"+electionNumber+".*\\.txt$","i").test(name));
-if(!files.length) throw new Error("No county VBM files found in "+sourceDir);
+if(files.length!==67 || new Set(files.map(n=>n.slice(0,3))).size!==67) throw new Error("Expected exactly 67 unique county VBM files in "+sourceDir);
 
 const chamberCols={congressional:"CongressionalDistrict",house:"HouseDistrict",senate:"SenateDistrict"};
 const limits={congressional:28,house:120,senate:40};
@@ -57,6 +57,7 @@ for(const name of files){
 
 const rows=map=>[...map.entries()].sort((a,b)=>Number(a[0])-Number(b[0])).map(([district,x])=>({
   district,
+  ...x,
   sent:x.sent,
   returned:x.returned,
   demReturned:x.demReturned,
@@ -66,20 +67,41 @@ const rows=map=>[...map.entries()].sort((a,b)=>Number(a[0])-Number(b[0])).map(([
   returnRate:x.sent?Number((x.returned/x.sent*100).toFixed(4)):0,
   drReturnMargin:x.demReturned-x.repReturned,
   drSentMargin:x.demSent-x.repSent,
+  npaShare:x.returned?x.npaReturned/x.returned*100:0,
+  ...Object.fromEntries(["dem","rep","npa","other"].map(p=>[p+"Rate",x[p+"Sent"]?x[p+"Returned"]/x[p+"Sent"]*100:0])),
 }));
 
 fs.mkdirSync(outputDir,{recursive:true});
 const write=(name,value)=>fs.writeFileSync(path.join(outputDir,name),JSON.stringify(value));
 
-const congressional=rows(chambers.congressional);
-const house=rows(chambers.house);
-const senate=rows(chambers.senate);
+const peer=new Set([1,2,3,4,5,6,7,8,11,12,13,15,16,17,18,19,21,26,27,28]);
+function enrich(values,chamber){
+  const filenames=chamber==="house"?[1,2,3,4].map(i=>`general-districts-house-${i}.json`):[`general-districts-${chamber}.json`];
+  const prior=filenames.flatMap(name=>fs.existsSync(path.join(outputDir,name))?JSON.parse(fs.readFileSync(path.join(outputDir,name),"utf8")):[]);
+  for(const r of values){
+    const b=prior.find(t=>t.district===r.district);
+    r.changeReturned=b?r.returned-b.returned:0;r.changeSent=b?r.sent-b.sent:0;r.changeRate=b?r.returnRate-b.returnRate:0;r.changeMargin=b?r.drReturnMargin-b.drReturnMargin:0;
+    for(const [label,field] of [["overall","returnRate"],...["dem","rep","npa","other"].map(p=>[p,p+"Rate"])]){
+      const raw=t=>label==="overall"?t.returned/t.sent*100:t[field];
+      r[label+"Rank"]=1+values.filter(t=>raw(t)>raw(r)).length;
+      if(chamber==="congressional")r[label+"PeerRank"]=peer.has(Number(r.district))?1+values.filter(t=>peer.has(Number(t.district))&&raw(t)>raw(r)).length:null;
+    }
+  }
+  return values;
+}
+const congressional=enrich(rows(chambers.congressional),"congressional");
+const house=enrich(rows(chambers.house),"house");
+const senate=enrich(rows(chambers.senate),"senate");
 write("general-districts-congressional.json",congressional);
 write("general-districts-senate.json",senate);
 for(let i=0;i<4;i++)write("general-districts-house-"+(i+1)+".json",house.slice(i*30,(i+1)*30));
 
 write("general-districts.json",{
   generatedAt:new Date().toISOString(),
+  snapshotCompiled:process.env.VBM_SNAPSHOT_COMPILED||"Snapshot compilation time not supplied",
+  sourcePackage:process.env.VBM_SOURCE_PACKAGE||path.basename(sourceDir),
+  baselineDate:process.env.VBM_BASELINE_DATE||"previous saved voter-file package",
+  excludedCongressional:{sent:statewide.sent-congressional.reduce((a,r)=>a+r.sent,0),returned:statewide.returned-congressional.reduce((a,r)=>a+r.returned,0)},
   election:"2026 General Election",
   electionDate:"11/03/2026",
   electionNumber,
