@@ -85,7 +85,7 @@ export async function GET(){
       const windows=parseEarlyVoting(await reportsRes.text());
       rows.forEach(r=>{r.earlyVoting=windows.get(r.name)||""});
     }
-    const compiled=rows.map(r=>r.provided.compiled||r.voted.compiled||r.early.compiled).filter(Boolean).sort().at(-1)||"";
+    const compiled=rows.map(r=>r.provided.compiled||r.voted.compiled||r.early.compiled).filter(Boolean).sort((a,b)=>Date.parse(a.replace(/(AM|PM)$/," $1"))-Date.parse(b.replace(/(AM|PM)$/," $1"))).at(-1)||"";
     return NextResponse.json({
       generatedAt:new Date().toISOString(),
       compiled,
@@ -96,6 +96,6 @@ export async function GET(){
       counties:rows
     },{headers:{"Cache-Control":"public, max-age=60, s-maxage=180, stale-while-revalidate=300"}});
   }catch(error){
-    return NextResponse.json({...snapshot, savedSnapshot:true, reportingNote:"Showing the verified October 3, 8:04 AM ET compilation while the live state source is unavailable."},{headers:{"Cache-Control":"no-store"}});
+    return NextResponse.json({...snapshot, savedSnapshot:true, reportingNote:`Showing the verified ${snapshot.compiled} ET compilation while the live state source is unavailable.`},{headers:{"Cache-Control":"no-store"}});
   }
 }
