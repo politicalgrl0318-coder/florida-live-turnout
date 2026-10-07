@@ -108,8 +108,8 @@ export default function GeneralElection(){
   const stateFallback=(data?.counties??[]).filter(c=>!liveCodes.has(c.code)&&(c.voted.total>0||c.early.total>0));
   const stateReportingCount=new Set((data?.counties??[]).filter(c=>c.voted.total>0||c.early.total>0).map(c=>c.code)).size;
   const fallbackTotals=stateFallback.reduce((a,c)=>({ballots:a.ballots+c.voted.total+c.early.total,mail:a.mail+c.voted.total,early:a.early+c.early.total,dem:a.dem+c.voted.dem+c.early.dem,rep:a.rep+c.voted.rep+c.early.rep,npa:a.npa+c.voted.npa+c.early.npa,other:a.other+c.voted.other+c.early.other}),{ballots:0,mail:0,early:0,dem:0,rep:0,npa:0,other:0});
-  const currentTotals={ballots:voted.total+early.total,mail:voted.total,early:early.total,dem:voted.dem+early.dem,rep:voted.rep+early.rep,npa:voted.npa+early.npa,other:voted.other+early.other};
-  const currentReportingCount=stateReportingCount;
+  const currentTotals={ballots:turnoutTotals.ballots+fallbackTotals.ballots,mail:turnoutTotals.mail+fallbackTotals.mail,early:turnoutTotals.early+fallbackTotals.early,electionDay:turnoutTotals.electionDay,dem:turnoutTotals.dem+fallbackTotals.dem,rep:turnoutTotals.rep+fallbackTotals.rep,npa:turnoutTotals.npa+fallbackTotals.npa,other:turnoutTotals.other+fallbackTotals.other};
+  const currentReportingCount=new Set([...liveCodes,...stateFallback.map(c=>c.code)]).size;
   const turnoutPartyTotal=currentTotals.dem+currentTotals.rep+currentTotals.npa+currentTotals.other||1;
   const turnoutMargin=currentTotals.dem-currentTotals.rep;
 
