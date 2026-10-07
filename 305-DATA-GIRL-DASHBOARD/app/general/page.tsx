@@ -142,7 +142,7 @@ export default function GeneralElection(){
     </nav>
 
     <section className={styles.content}>
-      <VbmUpdate/>
+      {view==="state"&&<VbmUpdate/>}
       {view==="turnout"?<>
         {turnoutError&&<div className={styles.error}><b>County turnout feed issue:</b> {turnoutError}<button onClick={refreshTurnout}>Try again</button></div>}
         <div className={styles.phase}><span>CURRENT BALLOT ACTIVITY</span><strong>Official statewide reported ballots</strong><p>{liveTurnout.length?`${liveTurnout.length} county live turnout feed${liveTurnout.length===1?" is":"s are"} active; counties without a live feed use Florida’s official VBM-return and Early Voting files.`:`County live-feed reporting has not begun. ${stateReportingCount}/67 counties already report returned VBM or Early Voting ballots through Florida’s official statewide county files.`}</p></div>
