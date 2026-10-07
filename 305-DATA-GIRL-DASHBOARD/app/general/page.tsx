@@ -30,7 +30,7 @@ function turnoutReportUrl(row:TurnoutRow){return row.code==="BRO"?browardResults
 function turnoutSourceLabel(row:TurnoutRow){return row.code==="BRO"?"Broward official report":"TQV live report"}
 
 export default function GeneralElection(){
-  const[view,setView]=useState<"turnout"|"state">("state");
+  const[view,setView]=useState<"turnout"|"state">("turnout");
   const[data,setData]=useState<Payload|null>(snapshot);
   const[error,setError]=useState("");
   const[loading,setLoading]=useState(true);
