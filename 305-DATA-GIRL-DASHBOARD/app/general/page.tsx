@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import styles from "./general.module.css";
 import VbmUpdate from "./vbm-update";
+import RegistrationComparison from "./registration-comparison";
 import snapshot from "../../public/data/general-official-snapshot.json";
 
 type Split={rep:number;dem:number;other:number;npa:number;total:number;compiled?:string};
@@ -112,6 +113,10 @@ export default function GeneralElection(){
   const currentReportingCount=new Set([...liveCodes,...stateFallback.map(c=>c.code)]).size;
   const turnoutPartyTotal=currentTotals.dem+currentTotals.rep+currentTotals.npa+currentTotals.other||1;
   const turnoutMargin=currentTotals.dem-currentTotals.rep;
+  const liveMailReturns=liveTurnout.reduce((a,c)=>({rep:a.rep+c.mailParty.rep,dem:a.dem+c.mailParty.dem,npa:a.npa+c.mailParty.npa,other:a.other+c.mailParty.other}),{rep:0,dem:0,npa:0,other:0});
+  const currentMailReturns=stateFallback.reduce((a,c)=>({rep:a.rep+c.voted.rep,dem:a.dem+c.voted.dem,npa:a.npa+c.voted.npa,other:a.other+c.voted.other}),liveMailReturns);
+  const stateCast={rep:voted.rep+early.rep,dem:voted.dem+early.dem,npa:voted.npa+early.npa,other:voted.other+early.other};
+
 
   function chooseSort(k:SortKey){if(sort===k)setAscending(!ascending);else{setSort(k);setAscending(k==="name")}}
   function chooseTurnoutSort(k:TurnoutSortKey){if(turnoutSort===k)setTurnoutAscending(!turnoutAscending);else{setTurnoutSort(k);setTurnoutAscending(k==="name")}}
@@ -142,6 +147,7 @@ export default function GeneralElection(){
     </nav>
 
     <section className={styles.content}>
+      <RegistrationComparison cast={view==="turnout"?currentTotals:stateCast} returns={view==="turnout"?currentMailReturns:voted} compiled={data?.compiled||"loading…"} label={view==="turnout"?"Latest county feeds with state fallback":"State VBM + Early Voting compilation"}/>
       {view==="state"&&<VbmUpdate/>}
       {view==="turnout"?<>
         {turnoutError&&<div className={styles.error}><b>County turnout feed issue:</b> {turnoutError}<button onClick={refreshTurnout}>Try again</button></div>}
