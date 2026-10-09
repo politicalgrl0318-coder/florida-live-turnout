@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import styles from "./general.module.css";
-import VbmUpdate from "./vbm-update";
 import RegistrationComparison from "./registration-comparison";
 import snapshot from "../../public/data/general-official-snapshot.json";
 
@@ -147,24 +146,17 @@ export default function GeneralElection(){
     </nav>
 
     <section className={styles.content}>
-      <RegistrationComparison cast={view==="turnout"?currentTotals:stateCast} returns={view==="turnout"?currentMailReturns:voted} compiled={data?.compiled||"loading…"} label={view==="turnout"?"Latest county feeds with state fallback":"State VBM + Early Voting compilation"}/>
-      {view==="state"&&<VbmUpdate/>}
       {view==="turnout"?<>
         {turnoutError&&<div className={styles.error}><b>County turnout feed issue:</b> {turnoutError}<button onClick={refreshTurnout}>Try again</button></div>}
         <div className={styles.phase}><span>CURRENT BALLOT ACTIVITY</span><strong>Official statewide reported ballots</strong><p>{liveTurnout.length?`${liveTurnout.length} county live turnout feed${liveTurnout.length===1?" is":"s are"} active; counties without a live feed use Florida’s official VBM-return and Early Voting files.`:`County live-feed reporting has not begun. ${stateReportingCount}/67 counties already report returned VBM or Early Voting ballots through Florida’s official statewide county files.`}</p></div>
+        <RegistrationComparison cast={currentTotals} returns={voted} requested={{rep:repSent,dem:demSent,npa:npaSent,other:otherSent}} compiled={data?.compiled||"loading…"}>
         <div className={styles.cards}>
           <article><label>Ballots cast</label><strong>{number.format(currentTotals.ballots)}</strong><small>Across {currentReportingCount} counties reporting cast ballots</small></article>
           <article><label>Vote by mail</label><strong>{number.format(currentTotals.mail)}</strong><small>{currentTotals.ballots?pct(currentTotals.mail/currentTotals.ballots*100):"—"} of ballots cast</small></article>
           <article><label>Early voting</label><strong>{number.format(currentTotals.early)}</strong><small>{currentTotals.ballots?pct(currentTotals.early/currentTotals.ballots*100):"—"} of ballots cast</small></article>
           <article><label>Election Day</label><strong>{number.format(turnoutTotals.electionDay)}</strong><small>Available when live county feeds report Election Day activity</small></article>
         </div>
-        <div className={styles.partyPanel}>
-          <article><span>REP</span><strong>{number.format(currentTotals.rep)}</strong><small>{pct(currentTotals.rep/turnoutPartyTotal*100)} of ballots cast</small></article>
-          <article><span>DEM</span><strong>{number.format(currentTotals.dem)}</strong><small>{pct(currentTotals.dem/turnoutPartyTotal*100)} of ballots cast</small></article>
-          <article><span>NPA</span><strong>{number.format(currentTotals.npa)}</strong><small>{pct(currentTotals.npa/turnoutPartyTotal*100)} of ballots cast</small></article>
-          <article><span>OTHER</span><strong>{number.format(currentTotals.other)}</strong><small>{pct(currentTotals.other/turnoutPartyTotal*100)} of ballots cast</small></article>
-          <article className={styles.margin}><span>STATEWIDE D–R TURNOUT MARGIN</span><strong className={turnoutMargin>=0?styles.dem:styles.rep}>{turnoutMargin>=0?"D":"R"} +{number.format(Math.abs(turnoutMargin))}</strong><small>Official state compilation: {data?.compiled||"loading…"}</small></article>
-        </div>
+        </RegistrationComparison>
         <section className={styles.tableCard}>
           <div className={styles.tableHead}><div><h2>Live county turnout feeds</h2><p>This table shows TQV/ElectionLink feeds as they activate. Until then, current VBM returns are already included in the summary above and on the interactive map from Florida’s official county files.</p></div><input value={turnoutQuery} onChange={e=>setTurnoutQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search live turnout counties"/></div>
           <div className={styles.tableWrap}><table><thead><tr><th><TurnoutSortButton k="name">County</TurnoutSortButton></th><th><TurnoutSortButton k="ballots">Ballots cast</TurnoutSortButton></th><th><TurnoutSortButton k="turnout">Turnout</TurnoutSortButton></th><th><TurnoutSortButton k="mail">VBM</TurnoutSortButton></th><th><TurnoutSortButton k="early">Early vote</TurnoutSortButton></th><th><TurnoutSortButton k="electionDay">Election Day</TurnoutSortButton></th><th><TurnoutSortButton k="rep">REP</TurnoutSortButton></th><th><TurnoutSortButton k="dem">DEM</TurnoutSortButton></th><th>NPA</th><th><TurnoutSortButton k="margin">D–R margin</TurnoutSortButton></th><th><TurnoutSortButton k="updated">Last county update</TurnoutSortButton></th></tr></thead><tbody>{turnoutRows.map(c=><tr key={c.code}><td><a href={turnoutReportUrl(c)} target="_blank" rel="noreferrer"><b>{c.name}</b><span>{c.code} • {turnoutSourceLabel(c)} ↗</span></a></td>{c.status==="live"?<><td><b>{number.format(c.ballots)}</b></td><td><b>{pct(c.turnout)}</b></td><td>{number.format(c.mail)}</td><td>{number.format(c.early)}</td><td>{number.format(c.electionDay)}</td><td className={styles.rep}>{number.format(c.rep)}</td><td className={styles.dem}>{number.format(c.dem)}</td><td>{number.format(c.npa)}</td><td className={c.dem>=c.rep?styles.dem:styles.rep}>{c.dem>=c.rep?"D":"R"} +{number.format(Math.abs(c.dem-c.rep))}</td><td>{formatTime(c.updated)}</td></>:<td colSpan={10}>General Election turnout feed not published yet — open county report ↗</td>}</tr>)}</tbody></table></div>
@@ -172,19 +164,14 @@ export default function GeneralElection(){
       </>:<>
         {error&&<div className={styles.error}><b>Ballot activity feed issue:</b> {error}<button onClick={refreshBallotActivity}>Try again</button></div>}
         <div className={styles.phase}><span>STATE VBM + EARLY VOTING</span><strong>Ballot pipeline</strong><p>County-reported data compiled by the Florida Division of Elections: Vote-by-Mail ballots provided, outstanding and returned, plus early votes cast as counties begin reporting.</p></div>
+        <RegistrationComparison cast={stateCast} returns={voted} requested={{rep:repSent,dem:demSent,npa:npaSent,other:otherSent}} compiled={data?.compiled||"loading…"}>
         <div className={styles.cards}>
           <article><label>VBM sent / provided</label><strong>{number.format(sentTotal)}</strong><small>Outstanding + returned</small></article>
           <article><label>Outstanding VBM</label><strong>{number.format(provided.total)}</strong><small>Provided, not yet returned</small></article>
           <article><label>Returned VBM</label><strong>{number.format(votedTotal)}</strong><small>{pct(returnPct)} return rate</small></article>
           <article><label>State early votes</label><strong>{number.format(early.total)}</strong><small>Updates when early voting begins</small></article>
         </div>
-        <div className={styles.partyPanel}>
-          <article><span>REP</span><strong>{number.format(repSent)}</strong><small>{pct(repSent/partyTotal*100)} of VBM sent</small></article>
-          <article><span>DEM</span><strong>{number.format(demSent)}</strong><small>{pct(demSent/partyTotal*100)} of VBM sent</small></article>
-          <article><span>NPA</span><strong>{number.format(npaSent)}</strong><small>{pct(npaSent/partyTotal*100)} of VBM sent</small></article>
-          <article><span>OTHER</span><strong>{number.format(otherSent)}</strong><small>{pct(otherSent/partyTotal*100)} of VBM sent</small></article>
-          <article className={styles.margin}><span>STATEWIDE D–R VBM GAP</span><strong className={margin>=0?styles.dem:styles.rep}>{margin>=0?"D":"R"} +{number.format(Math.abs(margin))}</strong><small>Among ballots sent / provided</small></article>
-        </div>
+        </RegistrationComparison>
         <section className={styles.tableCard}>
           <div className={styles.tableHead}><div><h2>State VBM + early voting by county</h2><p>County-submitted activity compiled by the Florida Division of Elections: VBM provided, outstanding and returned; return rate; and early votes cast.</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search ballot activity counties"/></div>
           <div className={styles.tableWrap}><table><thead><tr><th><SortButton k="name">County</SortButton></th><th><SortButton k="sent">VBM sent</SortButton></th><th><SortButton k="outstanding">Outstanding</SortButton></th><th><SortButton k="returned">Returned</SortButton></th><th><SortButton k="rate">Return rate</SortButton></th><th>Daily returns</th><th><SortButton k="early">Early votes</SortButton></th><th>REP sent</th><th>DEM sent</th><th>NPA sent</th><th><SortButton k="margin">D–R gap</SortButton></th><th>Early voting</th><th>Last report</th></tr></thead><tbody>{rows.map(c=>{const cSent=sent(c.provided,c.voted),cRep=partySent(c.provided,c.voted,"rep"),cDem=partySent(c.provided,c.voted,"dem"),cNpa=partySent(c.provided,c.voted,"npa"),cMargin=cDem-cRep;return <tr key={c.code}><td><a href={officialStats} target="_blank" rel="noreferrer"><b>{c.name}</b><span>{c.code} ↗</span></a></td><td><b>{number.format(cSent)}</b></td><td>{number.format(c.provided.total)}</td><td>{number.format(c.voted.total)}</td><td>{cSent?pct(c.voted.total/cSent*100):"—"}</td><td>{c.changeReturned===undefined?"—":number.format(c.changeReturned)}</td><td>{number.format(c.early.total)}</td><td className={styles.rep}>{number.format(cRep)}</td><td className={styles.dem}>{number.format(cDem)}</td><td>{number.format(cNpa)}</td><td className={cMargin>=0?styles.dem:styles.rep}>{cSent?`${cMargin>=0?"D":"R"} +${number.format(Math.abs(cMargin))}`:"—"}</td><td>{c.earlyVoting||"—"}</td><td>{c.provided.compiled||c.voted.compiled||c.early.compiled||"—"}</td></tr>})}</tbody></table></div>
