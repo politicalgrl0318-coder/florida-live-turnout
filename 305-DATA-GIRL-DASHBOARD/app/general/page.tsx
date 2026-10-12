@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import styles from "./general.module.css";
 import RegistrationComparison from "./registration-comparison";
+import ReportingNotice from "./reporting-notice";
 import snapshot from "../../public/data/general-official-snapshot.json";
 
 type Split={rep:number;dem:number;other:number;npa:number;total:number;compiled?:string};
 type CountyRow={code:string;name:string;sourceUrl:string;earlyVoting:string;provided:Split;voted:Split;early:Split;changeReturned?:number};
-type Payload={generatedAt:string;compiled:string;electionName:string;electionNumber:string;electionDate:string;totals:{provided:Split;voted:Split;early:Split;changeReturned?:number};counties:CountyRow[]};
+type Payload={generatedAt:string;compiled:string;electionName:string;electionNumber:string;electionDate:string;totals:{provided:Split;voted:Split;early:Split;changeReturned?:number};counties:CountyRow[];savedSnapshot?:boolean;reportingNote?:string};
 type SortKey="name"|"sent"|"outstanding"|"returned"|"rate"|"early"|"margin";
 type PartySplit={dem:number;rep:number;npa:number;other:number};
 type TurnoutRow={code:string;name:string;sourceUrl:string;status:"live"|"unavailable";registered:number;ballots:number;turnout:number;mail:number;early:number;electionDay:number;dem:number;rep:number;npa:number;other:number;mailParty:PartySplit;earlyParty:PartySplit;electionDayParty:PartySplit;updated:string|null;electionName:string;electionDate:string};
@@ -49,7 +50,7 @@ export default function GeneralElection(){
     try{
       const r=await fetch(`/api/general?t=${Date.now()}`,{cache:"no-store",signal:AbortSignal.timeout(12000)});
       const body=await r.json();
-      const saved=new Map(snapshot.counties.map(c=>[c.code,c]));
+      const saved=new Map<string,CountyRow>(snapshot.counties.map(c=>[c.code,c]));
       if(body.compiled===snapshot.compiled)body.counties=body.counties.map((c:CountyRow)=>({...c,changeReturned:saved.get(c.code)?.changeReturned}));
       if(!r.ok) throw new Error(body?.error||"The official Florida ballot-activity feed did not respond.");
       setData(body);
@@ -146,6 +147,7 @@ export default function GeneralElection(){
     </nav>
 
     <section className={styles.content}>
+      {data&&<ReportingNotice compiled={data.compiled} counties={data.counties} reportingNote={data.reportingNote}/>}
       {view==="turnout"?<>
         {turnoutError&&<div className={styles.error}><b>County turnout feed issue:</b> {turnoutError}<button onClick={refreshTurnout}>Try again</button></div>}
         <div className={styles.phase}><span>CURRENT BALLOT ACTIVITY</span><strong>Official statewide reported ballots</strong><p>{liveTurnout.length?`${liveTurnout.length} county live turnout feed${liveTurnout.length===1?" is":"s are"} active; counties without a live feed use Florida’s official VBM-return and Early Voting files.`:`County live-feed reporting has not begun. ${stateReportingCount}/67 counties already report returned VBM or Early Voting ballots through Florida’s official statewide county files.`}</p></div>

@@ -1,6 +1,7 @@
 "use client";
 
 import snapshot from "../../../public/data/general-official-snapshot.json";
+import ReportingNotice from "../reporting-notice";
 import { geoMercator, geoPath } from "d3-geo";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./map.module.css";
@@ -16,7 +17,7 @@ type TurnoutRow = {
 type TurnoutPayload = { generatedAt: string; electionName: string; electionDate: string; counties: TurnoutRow[] };
 type Split = { rep: number; dem: number; npa: number; other: number; total: number; compiled?: string };
 type StateCounty = { code: string; name: string; provided: Split; voted: Split; early: Split };
-type StatePayload = { generatedAt: string; compiled: string; counties: StateCounty[] };
+type StatePayload = { generatedAt: string; compiled: string; counties: StateCounty[]; reportingNote?: string };
 type DisplayRow = TurnoutRow & { dataSource: "county" | "state"; stateCompiled?: string };
 type PrecinctRow = { precinct: string; location: string; address: string; eligible: number; mail: number; early: number; electionDay: number; ballots: number; turnout: number };
 type PrecinctPayload = { county: { code: string; name: string }; updated: string | null; precincts: PrecinctRow[] };
@@ -72,6 +73,7 @@ export default function TurnoutMap() {
   const [rows, setRows] = useState<TurnoutRow[]>(snapshot.counties.map(fallbackTurnout));
   const [stateRows, setStateRows] = useState<StateCounty[]>(snapshot.counties);
   const [stateCompiled, setStateCompiled] = useState(snapshot.compiled);
+  const [reportingNote, setReportingNote] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(true);
   const [refreshVersion, setRefreshVersion] = useState(0);
@@ -111,6 +113,7 @@ export default function TurnoutMap() {
       stateLoaded = true;
       setStateRows(state.counties || []);
       setStateCompiled(state.compiled || "");
+      setReportingNote(state.reportingNote);
       setRows((current) => {
         const existing = new Map(current.map((row) => [row.code, row]));
         const stateRows = (state.counties || []).map((county) => existing.get(county.code) || fallbackTurnout(county));
@@ -215,6 +218,7 @@ export default function TurnoutMap() {
   return <main className={styles.page}>
     <header className={styles.hero}><div><a href="/general" className={styles.back}>← General Election Dashboard</a><span className={styles.kicker}>305 DATA GIRL • FLORIDA BALLOT ACTIVITY</span><h1>Florida 2026 Interactive Turnout Map</h1><p>Click any county to see ballots already cast and its reported precinct activity. County totals and map colors use the latest available live county feeds and refresh every 10 minutes. The state report is used when a county feed is unavailable.</p></div><button onClick={() => void refresh(true)} disabled={refreshing}>{refreshing ? "Refreshing…" : "Refresh now"}</button></header>
     {error && <div className={styles.error}>{error}</div>}
+    <ReportingNotice compiled={stateCompiled} counties={stateRows} reportingNote={reportingNote}/>
     <section className={styles.summary}><article><span>COUNTIES REPORTING CAST BALLOTS</span><b>{reporting.length}/67</b><small>{live.length ? `${live.length} county live feed${live.length === 1 ? "" : "s"} active` : loading ? "Loading official data…" : "State VBM/EV files active"}</small></article><article><span>BALLOTS CAST</span><b>{number.format(totals.ballots)}</b></article><article><span>DEM</span><b>{number.format(totals.dem)} <small>{pct(totals.dem / partyTotal * 100)}</small></b></article><article><span>REP</span><b>{number.format(totals.rep)} <small>{pct(totals.rep / partyTotal * 100)}</small></b></article><article><span>D–R TURNOUT MARGIN</span><b>{statewideMargin >= 0 ? "D" : "R"} +{number.format(Math.abs(statewideMargin))}</b></article></section>
     <section className={styles.mapCard}>
       <div className={styles.mapTop}><div><h2>County ballot activity</h2><p>Live county totals • automatic refresh every 10 minutes. State fallback: {stateCompiled||"loading…"} ET. Party colors represent voters’ registration, not candidate votes.</p></div><div className={styles.controls} aria-label="Map metric"><button className={metric === "margin" ? styles.active : ""} onClick={() => setMetric("margin")}>D–R margin</button><button className={metric === "mail" ? styles.active : ""} onClick={() => setMetric("mail")}>VBM returns</button><button className={metric === "ballots" ? styles.active : ""} onClick={() => setMetric("ballots")}>Ballots cast</button></div></div>
@@ -227,3 +231,4 @@ export default function TurnoutMap() {
     <section className={styles.note}><b>How to read this map:</b> The D–R margin compares the registration of Democrats and Republicans whose ballots are reported as cast. It is not a candidate vote count or election forecast. Map totals and colors use live county turnout feeds wherever available, with the Florida Division of Elections report as a fallback. County feeds update at different times; each selected county shows its source and update time. Precinct totals are shown separately and are not added again to county totals. Precinct totals are reported by ballot method and do not include a party split in the current TQV precinct feed. County boundaries are from the U.S. Census Bureau TIGERweb layer.</section>
   </main>;
 }
+

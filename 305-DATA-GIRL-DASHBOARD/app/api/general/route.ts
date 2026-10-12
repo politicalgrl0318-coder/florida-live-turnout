@@ -73,16 +73,19 @@ function sum(rows:CountyRow[], key:"provided"|"voted"|"early"){
 
 export async function GET(){
   try{
-    const [statsRes,reportsRes]=await Promise.all([
-      fetch(STATS_URL,{cache:"no-store",headers:{"User-Agent":"305DataGirl/1.0"},signal:AbortSignal.timeout(8000)}),
-      fetch(REPORTS_URL,{cache:"no-store",headers:{"User-Agent":"305DataGirl/1.0"},signal:AbortSignal.timeout(8000)})
+    const [statsResult,reportsResult]=await Promise.allSettled([
+      fetch(STATS_URL,{cache:"no-store",headers:{"User-Agent":"305DataGirl/1.0"},signal:AbortSignal.timeout(8000)}).then(response=>{
+        if(!response.ok) throw new Error(`Florida stats returned ${response.status}`);
+        return response.text();
+      }),
+      fetch(REPORTS_URL,{cache:"no-store",headers:{"User-Agent":"305DataGirl/1.0"},signal:AbortSignal.timeout(8000)}).then(response=>response.ok?response.text():"")
     ]);
-    if(!statsRes.ok) throw new Error(`Florida stats returned ${statsRes.status}`);
-    const statsHtml=await statsRes.text();
+    if(statsResult.status==="rejected") throw statsResult.reason;
+    const statsHtml=statsResult.value;
     const rows=parseStats(statsHtml);
     if(rows.every(r=>r.provided.total===0 && r.voted.total===0 && r.early.total===0)) throw new Error("Florida general-election rows were not found in the state report.");
-    if(reportsRes.ok){
-      const windows=parseEarlyVoting(await reportsRes.text());
+    if(reportsResult.status==="fulfilled"){
+      const windows=parseEarlyVoting(reportsResult.value);
       rows.forEach(r=>{r.earlyVoting=windows.get(r.name)||""});
     }
     const compiled=rows.map(r=>r.provided.compiled||r.voted.compiled||r.early.compiled).filter(Boolean).sort((a,b)=>Date.parse(a.replace(/(AM|PM)$/," $1"))-Date.parse(b.replace(/(AM|PM)$/," $1"))).at(-1)||"";
@@ -99,3 +102,4 @@ export async function GET(){
     return NextResponse.json({...snapshot, savedSnapshot:true, reportingNote:`Showing the verified ${snapshot.compiled} ET compilation while the live state source is unavailable.`},{headers:{"Cache-Control":"no-store"}});
   }
 }
+
