@@ -87,10 +87,11 @@ test('summary card party breakdowns match each method, including state fallback 
   const cards = Object.fromEntries(['Ballots cast', 'Vote by mail', 'Early voting', 'Election Day'].map(label => {
     const block = html.match(new RegExp(`<article><label>${label}</label><strong>([\\s\\S]*?)</strong>([\\s\\S]*?)</article>`));
     assert.ok(block, `Missing ${label} card`);
-    const entries = [...block[2].matchAll(/<dt[^>]*>([^<]+)<\/dt><dd>([^<]+)<\/dd>/g)];
+    const entries = [...block[2].matchAll(/<dt[^>]*>([^<]+)<\/dt><dd><span>([^<]+)<\/span><small[^>]*>([^<]+)<\/small><\/dd>/g)];
     assert.equal(entries.length, 4);
     const values = Object.fromEntries(entries.map(([, party, value]) => [party.toLowerCase(), Number(value.replaceAll(',', ''))]));
     assert.equal(sum(values), Number(block[1].replaceAll(',', '')), `${label} party sum`);
+    for (const [, party, , share] of entries) assert.equal(share, sum(values) ? `${(values[party.toLowerCase()] / sum(values) * 100).toFixed(2)}%` : '—');
     return [label, values];
   }));
   assert.deepEqual(cards['Early voting'], { dem: 7, rep: 0, npa: 0, other: 3 });

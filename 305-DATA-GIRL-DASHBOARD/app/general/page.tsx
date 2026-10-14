@@ -32,7 +32,8 @@ function turnoutSourceLabel(row:TurnoutRow){return row.code==="BRO"?"Broward off
 function sumParties(splits:PartySplit[]):PartySplit{return splits.reduce((a,s)=>({dem:a.dem+s.dem,rep:a.rep+s.rep,npa:a.npa+s.npa,other:a.other+s.other}),{dem:0,rep:0,npa:0,other:0})}
 function CardPartyBreakdown({values,label}:{values:PartySplit;label:string}){
   const colors={dem:"#2167b3",rep:"#bf3535",npa:"#596579",other:"#8155a3"};
-  return <dl className={styles.cardParties} aria-label={`${label} by party`}>{(["dem","rep","npa","other"] as const).map(p=><div key={p}><dt style={{color:colors[p]}}>{p==="other"?"Other":p.toUpperCase()}</dt><dd>{number.format(values[p])}</dd></div>)}</dl>;
+  const total=values.dem+values.rep+values.npa+values.other;
+  return <dl className={styles.cardParties} aria-label={`${label} by party`}>{(["dem","rep","npa","other"] as const).map(p=><div key={p}><dt style={{color:colors[p]}}>{p==="other"?"Other":p.toUpperCase()}</dt><dd><span>{number.format(values[p])}</span><small title={`Share of ${label.toLowerCase()}`}>{total?pct(values[p]/total*100):"—"}</small></dd></div>)}</dl>;
 }
 
 export default function GeneralElection(){
