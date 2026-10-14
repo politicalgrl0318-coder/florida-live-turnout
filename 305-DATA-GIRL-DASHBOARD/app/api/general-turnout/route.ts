@@ -15,7 +15,10 @@ const browardPartyDashboard = "https://my.browardvotes.gov/TEDElectionLink/Absen
 const browardPrecinctCsv = "https://updates.electionlink.net/widgets/browardfl/2026-11-03/TurnoutByPrecinctTable.csv";
 const BATCH_SIZE = 15;
 const generalElectionCache=new Map<string,{expires:number;promise:Promise<any>}>();
-const sum = (obj:Record<string,number>|undefined) => Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);
+// Match the mail + early + Election Day universe used by county ballot totals.
+// TQV can also include provisional records in PartyType (e.g. Nassau), which
+// must not be folded into party totals when absent from the displayed methods.
+const sum = (obj:Record<string,number>|undefined) => ["Mail","EarlyVoting","ElectionDay"].reduce((a,key)=>a+(Number(obj?.[key])||0),0);
 const emptyMethod = () => ({dem:0,rep:0,npa:0,other:0});
 
 function isGeneralElection(summary:any){
