@@ -29,6 +29,11 @@ function partySent(s:Split,r:Split,key:"rep"|"dem"|"npa"|"other"){return s[key]+
 function returnRate(row:CountyRow){const total=sent(row.provided,row.voted);return total?row.voted.total/total*100:0}
 function turnoutReportUrl(row:TurnoutRow){return row.code==="BRO"?browardResults:row.sourceUrl}
 function turnoutSourceLabel(row:TurnoutRow){return row.code==="BRO"?"Broward official report":"TQV live report"}
+function sumParties(splits:PartySplit[]):PartySplit{return splits.reduce((a,s)=>({dem:a.dem+s.dem,rep:a.rep+s.rep,npa:a.npa+s.npa,other:a.other+s.other}),{dem:0,rep:0,npa:0,other:0})}
+function CardPartyBreakdown({values,label}:{values:PartySplit;label:string}){
+  const colors={dem:"#2167b3",rep:"#bf3535",npa:"#596579",other:"#8155a3"};
+  return <dl className={styles.cardParties} aria-label={`${label} by party`}>{(["dem","rep","npa","other"] as const).map(p=><div key={p}><dt style={{color:colors[p]}}>{p==="other"?"Other":p.toUpperCase()}</dt><dd>{number.format(values[p])}</dd></div>)}</dl>;
+}
 
 export default function GeneralElection(){
   const[view,setView]=useState<"turnout"|"state">("turnout");
@@ -115,6 +120,8 @@ export default function GeneralElection(){
   const turnoutMargin=currentTotals.dem-currentTotals.rep;
   const liveMailReturns=liveTurnout.reduce((a,c)=>({rep:a.rep+c.mailParty.rep,dem:a.dem+c.mailParty.dem,npa:a.npa+c.mailParty.npa,other:a.other+c.mailParty.other}),{rep:0,dem:0,npa:0,other:0});
   const currentMailReturns=stateFallback.reduce((a,c)=>({rep:a.rep+c.voted.rep,dem:a.dem+c.voted.dem,npa:a.npa+c.voted.npa,other:a.other+c.voted.other}),liveMailReturns);
+  const currentEarlyReturns=sumParties([...liveTurnout.map(c=>c.earlyParty),...stateFallback.map(c=>c.early)]);
+  const currentElectionDayReturns=sumParties(liveTurnout.map(c=>c.electionDayParty));
   const stateCast={rep:voted.rep+early.rep,dem:voted.dem+early.dem,npa:voted.npa+early.npa,other:voted.other+early.other};
 
 
@@ -153,10 +160,10 @@ export default function GeneralElection(){
         <div className={styles.phase}><span>CURRENT BALLOT ACTIVITY</span><strong>Official statewide reported ballots</strong><p>{liveTurnout.length?`${liveTurnout.length} county live turnout feed${liveTurnout.length===1?" is":"s are"} active; counties without a live feed use Florida’s official VBM-return and Early Voting files.`:`County live-feed reporting has not begun. ${stateReportingCount}/67 counties already report returned VBM or Early Voting ballots through Florida’s official statewide county files.`}</p></div>
         <RegistrationComparison cast={currentTotals} liveReturns={currentMailReturns} returns={voted} requested={{rep:repSent,dem:demSent,npa:npaSent,other:otherSent}} compiled={data?.compiled||"loading…"}>
         <div className={styles.cards}>
-          <article><label>Ballots cast</label><strong>{number.format(currentTotals.ballots)}</strong><small>Across {currentReportingCount} counties reporting cast ballots</small></article>
-          <article><label>Vote by mail</label><strong>{number.format(currentTotals.mail)}</strong><small>{currentTotals.ballots?pct(currentTotals.mail/currentTotals.ballots*100):"—"} of ballots cast</small></article>
-          <article><label>Early voting</label><strong>{number.format(currentTotals.early)}</strong><small>{currentTotals.ballots?pct(currentTotals.early/currentTotals.ballots*100):"—"} of ballots cast</small></article>
-          <article><label>Election Day</label><strong>{number.format(turnoutTotals.electionDay)}</strong><small>Available when live county feeds report Election Day activity</small></article>
+          <article><label>Ballots cast</label><strong>{number.format(currentTotals.ballots)}</strong><small>Across {currentReportingCount} counties reporting cast ballots</small><CardPartyBreakdown values={currentTotals} label="Ballots cast"/></article>
+          <article><label>Vote by mail</label><strong>{number.format(currentTotals.mail)}</strong><small>{currentTotals.ballots?pct(currentTotals.mail/currentTotals.ballots*100):"—"} of ballots cast</small><CardPartyBreakdown values={currentMailReturns} label="Vote by mail"/></article>
+          <article><label>Early voting</label><strong>{number.format(currentTotals.early)}</strong><small>{currentTotals.ballots?pct(currentTotals.early/currentTotals.ballots*100):"—"} of ballots cast</small><CardPartyBreakdown values={currentEarlyReturns} label="Early voting"/></article>
+          <article><label>Election Day</label><strong>{number.format(turnoutTotals.electionDay)}</strong><small>Available when live county feeds report Election Day activity</small><CardPartyBreakdown values={currentElectionDayReturns} label="Election Day"/></article>
         </div>
         </RegistrationComparison>
         <section className={styles.tableCard}>

@@ -2,6 +2,11 @@
 .registrationNote{margin:18px 22px;color:#555;font-size:13px;line-height:1.65}.registrationNote a{color:#176f69;text-decoration:underline}
 
 /* Summary tables should fit their columns, not inherit the wide county grid. */
+.participation>.cards article>strong{margin:10px 0 4px}
+.cardParties{margin:12px 0 0;padding-top:10px;border-top:1px solid #d9d3ca;display:grid;gap:6px;font-size:12px;line-height:1.35}
+.cardParties>div{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.cardParties dt{font-weight:800}
+.cardParties dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .participation .tableWrap table{width:auto;min-width:0}
 .participation .tableWrap th{max-width:116px;padding:10px;white-space:normal;line-height:1.35;letter-spacing:.2px}
 .participation .tableWrap td{padding:10px;font-variant-numeric:tabular-nums}

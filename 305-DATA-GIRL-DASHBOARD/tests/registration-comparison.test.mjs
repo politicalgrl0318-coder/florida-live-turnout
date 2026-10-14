@@ -78,6 +78,26 @@ function liveCounty(extraEarly = 0, extraElectionDay = 0) {
   };
 }
 
+test('summary card party breakdowns match each method, including state fallback early votes', () => {
+  const state = structuredClone(snapshot);
+  const fallback = state.counties.find(c => c.code === 'CLL');
+  fallback.early.other += 3;
+  fallback.early.total += 3;
+  const html = renderDashboard('turnout', [liveCounty(7, 5)], state);
+  const cards = Object.fromEntries(['Ballots cast', 'Vote by mail', 'Early voting', 'Election Day'].map(label => {
+    const block = html.match(new RegExp(`<article><label>${label}</label><strong>([\\s\\S]*?)</strong>([\\s\\S]*?)</article>`));
+    assert.ok(block, `Missing ${label} card`);
+    const entries = [...block[2].matchAll(/<dt[^>]*>([^<]+)<\/dt><dd>([^<]+)<\/dd>/g)];
+    assert.equal(entries.length, 4);
+    const values = Object.fromEntries(entries.map(([, party, value]) => [party.toLowerCase(), Number(value.replaceAll(',', ''))]));
+    assert.equal(sum(values), Number(block[1].replaceAll(',', '')), `${label} party sum`);
+    return [label, values];
+  }));
+  assert.deepEqual(cards['Early voting'], { dem: 7, rep: 0, npa: 0, other: 3 });
+  assert.deepEqual(cards['Election Day'], { dem: 0, rep: 5, npa: 0, other: 0 });
+  for (const p of parties) assert.equal(cards['Ballots cast'][p], cards['Vote by mail'][p] + cards['Early voting'][p] + cards['Election Day'][p]);
+});
+
 test('live returns and cast agree before in-person voting, including state fallback counties', () => {
   const html = renderDashboard('turnout', [liveCounty()]);
   const rows = tableRows(html, 'Live turnout and VBM returns by party');
