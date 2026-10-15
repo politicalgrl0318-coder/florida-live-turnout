@@ -172,7 +172,7 @@ export default function DistrictsPage(){
     <header className={styles.hero}>
       <div className={styles.eyebrow}><i/> DISTRICT RESULTS + MAPS</div>
       <h1>Florida 2026 district turnout</h1>
-      <p>Vote-by-mail activity by congressional, Florida House and Florida Senate district, built from the verified October 14 voter-level VBM archive, including Monroe.</p>
+      <p>Vote-by-mail activity by congressional, Florida House and Florida Senate district, built from the verified October 15 voter-level VBM archive, including Monroe.</p>
       <div className={styles.meta}><span>Election 49894</span><b>•</b><span>General Election: Nov. 3</span><b>•</b><span>Voter file: {data?.snapshotCompiled||"loading…"} • activity through {data?.dataThrough||"loading…"}</span><b>•</b><span>{data?data.coverage.countiesLoaded+"/67 counties loaded":"loading…"}</span></div>
     </header>
 
@@ -194,7 +194,7 @@ export default function DistrictsPage(){
         <article><span>REP returns</span><strong className={styles.rep}>{statewide?number.format(statewide.repReturned):"—"}</strong><small>{statewide&&statewide.returned?pct(statewide.repReturned/statewide.returned*100):"—"} of statewide returns</small></article>
       </div>
 
-      <section className={styles.method}><h2>Snapshot and reporting status</h2><p>District data uses {data?.sourcePackage||"the voter-level package"}. Statewide/county live data on the Dashboard is separately timestamped. Daily district changes compare {data?.baselineDate||"the prior package"}.</p><p>{data?number.format(data.excludedCongressional.returned):"—"} returned ballots and {data?number.format(data.excludedCongressional.sent):"—"} P + V records have no valid congressional assignment and remain in statewide totals.</p><p>Zero or low reported returns can reflect processing and reporting timing. 66 of 67 counties are represented. Suwannee is absent, with no prior records substituted. Daily changes are unavailable for districts affected by changing county coverage. Affected district totals and rankings are provisional. Treat these figures as reported mail-return activity, not a turnout forecast.</p></section>
+      <section className={styles.method}><h2>Snapshot and reporting status</h2><p>District data uses {data?.sourcePackage||"the voter-level package"}. Statewide/county live data on the Dashboard is separately timestamped. Daily district changes compare {data?.baselineDate||"the prior package"}.</p><p>{data?number.format(data.excludedCongressional.returned):"—"} returned ballots and {data?number.format(data.excludedCongressional.sent):"—"} P + V records have no valid congressional assignment and remain in statewide totals.</p><p>Zero or low reported returns can reflect processing and reporting timing. 65 of 67 counties are represented. Bay and Okeechobee are absent, with no prior records substituted. Daily changes are unavailable for districts affected by changing county coverage. Affected district totals and rankings are provisional. Treat these figures as reported mail-return activity, not a turnout forecast.</p></section>
       <section className={styles.mapCard}>
         <div className={styles.mapHead}><div><h2>{config.label}</h2><p>{metricLabel(metric)} • district totals come from the county voter-level files.</p></div><a href={config.sourceUrl} target="_blank" rel="noreferrer">Official district boundaries ↗</a></div>
         {!mapError&&<div className={styles.mapGrid}>
