@@ -126,5 +126,22 @@
       "npa": 478156,
       "other": 58916
     }
+  },
+  {
+    "date": "2026-10-17",
+    "compiled": "10/17/2026 8:04AM",
+    "returned": {
+      "dem": 346577,
+      "rep": 295587,
+      "npa": 152552,
+      "other": 19971
+    },
+    "requested": {
+      "dem": 1006059,
+      "rep": 810943,
+      "npa": 480438,
+      "other": 59220
+    },
+    "coverageNote": "October 17, 2026, 8:04 AM ET official compilation: 63 current counties; Hamilton, Levy, Sumter and Walton retain October 16 statistics."
   }
 ]
