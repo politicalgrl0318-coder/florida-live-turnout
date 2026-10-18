@@ -143,5 +143,22 @@
       "other": 59220
     },
     "coverageNote": "October 17, 2026, 8:04 AM ET official compilation: 63 current counties; Hamilton, Levy, Sumter and Walton retain October 16 statistics."
+  },
+  {
+    "date": "2026-10-18",
+    "compiled": "10/18/2026 8:04AM",
+    "returned": {
+      "dem": 353102,
+      "rep": 301992,
+      "npa": 155497,
+      "other": 20373
+    },
+    "requested": {
+      "dem": 1005859,
+      "rep": 810814,
+      "npa": 480385,
+      "other": 59227
+    },
+    "coverageNote": "October 18, 2026, 8:04 AM ET compilation: 60 current counties. Gadsden, Hendry, Liberty and Osceola retain October 17 statistics; Hamilton, Levy and Sumter retain October 16 statistics."
   }
 ]
