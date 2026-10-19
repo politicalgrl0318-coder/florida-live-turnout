@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./general.module.css";
 import RegistrationComparison from "./registration-comparison";
 import ReportingNotice from "./reporting-notice";
@@ -11,13 +11,17 @@ type CountyRow={code:string;name:string;sourceUrl:string;earlyVoting:string;prov
 type Payload={generatedAt:string;compiled:string;electionName:string;electionNumber:string;electionDate:string;totals:{provided:Split;voted:Split;early:Split;changeReturned?:number};counties:CountyRow[];savedSnapshot?:boolean;reportingNote?:string};
 type SortKey="name"|"sent"|"outstanding"|"returned"|"rate"|"early"|"margin";
 type PartySplit={dem:number;rep:number;npa:number;other:number};
-type TurnoutRow={code:string;name:string;sourceUrl:string;status:"live"|"unavailable";registered:number;ballots:number;turnout:number;mail:number;early:number;electionDay:number;dem:number;rep:number;npa:number;other:number;mailParty:PartySplit;earlyParty:PartySplit;electionDayParty:PartySplit;updated:string|null;electionName:string;electionDate:string};
+type TurnoutRow={code:string;name:string;sourceUrl:string;status:"live"|"unavailable";registered:number;ballots:number;turnout:number;mail:number;early:number;electionDay:number;dem:number;rep:number;npa:number;other:number;mailParty:PartySplit;earlyParty:PartySplit;electionDayParty:PartySplit;updated:string|null;electionName:string;electionDate:string;stale?:boolean};
 type TurnoutPayload={generatedAt:string;electionName:string;electionDate:string;counties:TurnoutRow[]};
 type TurnoutSortKey="name"|"ballots"|"turnout"|"mail"|"early"|"electionDay"|"dem"|"rep"|"margin"|"updated";
 
 const number=new Intl.NumberFormat("en-US");
 const pct=(v:number)=>Number.isFinite(v)?`${v.toFixed(2)}%`:"—";
-const formatTime=(v:string|null)=>v?new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"America/New_York",timeZoneName:"short"}).format(new Date(v)):"—";
+const formatTime=(v:string|null)=>{
+  if(!v) return "—";
+  const time=new Date(v);
+  return Number.isFinite(time.getTime())?new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"America/New_York",timeZoneName:"short"}).format(time):v;
+};
 const officialStats="https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats";
 const electionDates="https://dos.fl.gov/elections/for-voters/election-dates";
 const vbmInfo="https://dos.fl.gov/elections/for-voters/voting/vote-by-mail";
@@ -30,10 +34,42 @@ function returnRate(row:CountyRow){const total=sent(row.provided,row.voted);retu
 function turnoutReportUrl(row:TurnoutRow){return row.code==="BRO"?browardResults:row.sourceUrl}
 function turnoutSourceLabel(row:TurnoutRow){return row.code==="BRO"?"Broward official report":"TQV live report"}
 function sumParties(splits:PartySplit[]):PartySplit{return splits.reduce((a,s)=>({dem:a.dem+s.dem,rep:a.rep+s.rep,npa:a.npa+s.npa,other:a.other+s.other}),{dem:0,rep:0,npa:0,other:0})}
-function CardPartyBreakdown({values,label}:{values:PartySplit;label:string}){
+
+// Validate each county independently; one failed source must not erase the rest.
+function isCurrentGeneral(name:unknown,date:unknown){
+  return /general/i.test(String(name))&&/^(?:11\/0?3\/2026|2026-11-03)(?:$|T|\s)/.test(String(date));
+}
+function usableCounty(row:TurnoutRow){
+  if(!row||typeof row.code!=="string"||!row.code.match(/^[A-Z]{3}$/)) return false;
+  if(row.status==="unavailable") return true;
+  if(row.status!=="live"||!isCurrentGeneral(row.electionName,row.electionDate)) return false;
+  const keys=["mail","early","electionDay","ballots","registered","dem","rep","npa","other"] as const;
+  if(keys.some(key=>!Number.isSafeInteger(row[key])||row[key]<0)) return false;
+  const methods=[[row.mail,row.mailParty],[row.early,row.earlyParty],[row.electionDay,row.electionDayParty]] as const;
+  if(methods.some(([total,split])=>!split||[split.dem,split.rep,split.npa,split.other].some(v=>!Number.isSafeInteger(v)||v<0)||total!==split.dem+split.rep+split.npa+split.other)) return false;
+  return row.ballots===row.mail+row.early+row.electionDay&&(["dem","rep","npa","other"] as const).every(p=>row[p]===row.mailParty[p]+row.earlyParty[p]+row.electionDayParty[p]);
+}
+function mergeCountyRows(previous:TurnoutRow[],incoming:TurnoutRow[]){
+  const rows=new Map(previous.map(row=>[row.code,{...row,stale:row.status==="live"}]));
+  for(const row of incoming){
+    if(!usableCounty(row)) continue;
+    const saved=rows.get(row.code);
+    if(saved?.status==="live"){
+      if(row.status!=="live") continue;
+      const oldTime=Date.parse(saved.updated||""),newTime=Date.parse(row.updated||"");
+      if(Number.isFinite(oldTime)&&(!Number.isFinite(newTime)||newTime<oldTime)) continue;
+    }
+    rows.set(row.code,{...row,stale:false});
+  }
+  return [...rows.values()];
+}
+function vbmOnlySource(row:TurnoutRow){return /\/AbsenteeTurnOut\//i.test(row.sourceUrl)}
+function rawMargin(values:PartySplit){const gap=values.dem-values.rep;return gap===0?"Even":`${gap>0?"D":"R"} +${number.format(Math.abs(gap))}`}
+
+function CardPartyBreakdown({values,label,pending=false}:{values:PartySplit;label:string;pending?:boolean}){
   const colors={dem:"#2167b3",rep:"#bf3535",npa:"#596579",other:"#8155a3"};
   const total=values.dem+values.rep+values.npa+values.other;
-  return <dl className={styles.cardParties} aria-label={`${label} by party`}>{(["dem","rep","npa","other"] as const).map(p=><div key={p}><dt style={{color:colors[p]}}>{p==="other"?"Other":p.toUpperCase()}</dt><dd><span>{number.format(values[p])}</span><small title={`Share of ${label.toLowerCase()}`}>{total?pct(values[p]/total*100):"—"}</small></dd></div>)}</dl>;
+  return <dl className={styles.cardParties} aria-label={`${label} by party`}>{(["dem","rep","npa","other"] as const).map(p=><div key={p}><dt style={{color:colors[p]}}>{p==="other"?"Other":p.toUpperCase()}</dt><dd><span>{pending?"—":number.format(values[p])}</span><small title={`Share of ${label.toLowerCase()}`}>{!pending&&total?pct(values[p]/total*100):"—"}</small></dd></div>)}</dl>;
 }
 
 export default function GeneralElection(){
@@ -50,6 +86,8 @@ export default function GeneralElection(){
   const[turnoutQuery,setTurnoutQuery]=useState("");
   const[turnoutSort,setTurnoutSort]=useState<TurnoutSortKey>("ballots");
   const[turnoutAscending,setTurnoutAscending]=useState(false);
+  const[turnoutCheckedAt,setTurnoutCheckedAt]=useState<string|null>(null);
+  const turnoutRequest=useRef(0);
 
   async function refreshBallotActivity(){
     setLoading(true);setError("");
@@ -65,21 +103,40 @@ export default function GeneralElection(){
   }
 
   async function refreshTurnout(){
+    const requestId=++turnoutRequest.current;
     setTurnoutLoading(true);setTurnoutError("");
     try{
       const stamp=Date.now();
-      const responses=await Promise.all(Array.from({length:5},(_,batch)=>fetch(`/api/general-turnout?batch=${batch}&t=${stamp}`,{cache:"no-store"})));
-      if(responses.some(r=>!r.ok)) throw new Error("One or more county turnout feeds did not respond.");
-      const payloads=await Promise.all(responses.map(async r=>await r.json() as TurnoutPayload));
-      const first=payloads.find(p=>p.counties.length)||payloads[0];
-      const counties=[...new Map(payloads.flatMap(p=>p.counties).map(c=>[c.code,c])).values()];
-      setTurnoutData({generatedAt:payloads.map(p=>p.generatedAt).sort().at(-1)||new Date().toISOString(),electionName:first?.electionName||"2026 General Election",electionDate:first?.electionDate||"11/03/2026",counties});
-    }catch(e){setTurnoutError(e instanceof Error?e.message:"Unable to load county turnout data.")}
-    finally{setTurnoutLoading(false)}
+      const results=await Promise.allSettled(Array.from({length:5},async(_,batch)=>{
+        const response=await fetch(`/api/general-turnout?batch=${batch}&t=${stamp}`,{cache:"no-store",signal:AbortSignal.timeout(20000)});
+        if(!response.ok) throw new Error(`County batch ${batch+1} did not respond.`);
+        const payload=await response.json() as TurnoutPayload;
+        if(!Array.isArray(payload.counties)||!isCurrentGeneral(payload.electionName,payload.electionDate)) throw new Error(`County batch ${batch+1} returned an invalid election report.`);
+        return payload;
+      }));
+      if(requestId!==turnoutRequest.current) return;
+      const payloads=results.flatMap(result=>result.status==="fulfilled"?[result.value]:[]);
+      const incoming=payloads.flatMap(payload=>payload.counties);
+      const rejected=incoming.filter(row=>!usableCounty(row)).length;
+      const failed=results.length-payloads.length;
+      setTurnoutData(previous=>({
+        generatedAt:payloads.map(payload=>payload.generatedAt).filter(Boolean).sort().at(-1)||previous?.generatedAt||"",
+        electionName:"2026 General Election",electionDate:"11/03/2026",
+        counties:mergeCountyRows(previous?.counties||[],incoming)
+      }));
+      if(failed||rejected) setTurnoutError(`${failed} of 5 county batches unavailable; ${rejected} county reports failed reconciliation. Successful reports are included; last verified figures are retained where available and marked stale.`);
+    }catch(e){
+      if(requestId===turnoutRequest.current){
+        setTurnoutError(e instanceof Error?e.message:"Unable to load county turnout data.");
+        setTurnoutData(previous=>previous?{...previous,counties:mergeCountyRows(previous.counties,[])}:previous);
+      }
+    }finally{
+      if(requestId===turnoutRequest.current){setTurnoutCheckedAt(new Date().toISOString());setTurnoutLoading(false)}
+    }
   }
 
   async function refresh(){await Promise.all([refreshBallotActivity(),refreshTurnout()])}
-  useEffect(()=>{refresh();const t=setInterval(refresh,300000);return()=>clearInterval(t)},[]);
+  useEffect(()=>{refresh();const t=setInterval(refresh,60000);return()=>{clearInterval(t);turnoutRequest.current++}},[]);
 
   const rows=useMemo(()=>{
     const list=(data?.counties??[]).filter(c=>c.name.toLowerCase().includes(query.toLowerCase())||c.code.toLowerCase().includes(query.toLowerCase()));
@@ -109,7 +166,21 @@ export default function GeneralElection(){
   const partyTotal=repSent+demSent+npaSent+otherSent||1;
   const margin=demSent-repSent;
 
-  const liveTurnout=turnoutData?.counties.filter(c=>c.status==="live")??[];
+  // A live absentee-only report does not establish zero in-person turnout.
+  // Preserve its mail counts, but label the state's early-vote fallback explicitly.
+  const liveTurnout=(turnoutData?.counties.filter(c=>c.status==="live")??[]).map(c=>{
+    if(!vbmOnlySource(c)) return c;
+    const ev=data?.counties.find(row=>row.code===c.code)?.early;
+    const earlyParty={dem:ev?.dem??0,rep:ev?.rep??0,npa:ev?.npa??0,other:ev?.other??0};
+    return {...c,early:ev?.total??0,earlyParty,ballots:c.mail+(ev?.total??0),electionDay:0,electionDayParty:{dem:0,rep:0,npa:0,other:0},...sumParties([c.mailParty,earlyParty])};
+  });
+  const initialLiveLoading=turnoutLoading&&!turnoutData;
+  const staleLiveCount=liveTurnout.filter(c=>c.stale).length;
+  const refreshedLiveCount=liveTurnout.length-staleLiveCount;
+  const mailOnlyCount=liveTurnout.filter(vbmOnlySource).length;
+  const inPersonFeedCount=liveTurnout.filter(c=>!c.stale&&!vbmOnlySource(c)).length;
+  const inPersonUnreported=liveTurnout.length<67||staleLiveCount>0||mailOnlyCount>0;
+  const latestCountyUpdate=liveTurnout.map(c=>c.updated).filter((v):v is string=>!!v&&Number.isFinite(Date.parse(v))).sort((a,b)=>Date.parse(a)-Date.parse(b)).at(-1)||null;
   const turnoutTotals=liveTurnout.reduce((a,c)=>({registered:a.registered+c.registered,ballots:a.ballots+c.ballots,mail:a.mail+c.mail,early:a.early+c.early,electionDay:a.electionDay+c.electionDay,dem:a.dem+c.dem,rep:a.rep+c.rep,npa:a.npa+c.npa,other:a.other+c.other}),{registered:0,ballots:0,mail:0,early:0,electionDay:0,dem:0,rep:0,npa:0,other:0});
   const liveCodes=new Set(liveTurnout.map(c=>c.code));
   const stateFallback=(data?.counties??[]).filter(c=>!liveCodes.has(c.code)&&(c.voted.total>0||c.early.total>0));
@@ -137,7 +208,7 @@ export default function GeneralElection(){
       <div className={styles.eyebrow}><i/> OFFICIAL FLORIDA ELECTION DATA</div>
       <h1>Florida General Election 2026</h1>
       <p className={styles.dek}>{view==="turnout"?"Live turnout across Florida counties as official county reporting feeds come online.":"Vote-by-Mail and Early Voting activity for the November 3 General Election, including ballots provided, returned and outstanding, plus early votes cast."}</p>
-      <div className={styles.status}><span>Election 49894</span><b>•</b><span>Election Day: Nov. 3</span><b>•</b><span>Official compilation: {data?.compiled||"loading…"} ET</span><b>•</b>{view==="turnout"?<span>{currentReportingCount}/67 counties reporting cast ballots • {liveTurnout.length?`${liveTurnout.length} live county feed${liveTurnout.length===1?"":"s"} active`:"live county feeds not active yet"}</span>:<span>State compilation: {data?.compiled||"loading…"}</span>}<button onClick={refresh} disabled={loading||turnoutLoading}>{loading||turnoutLoading?"Refreshing…":"Refresh now"}</button></div>
+      <div className={styles.status}><span>Election 49894</span><b>•</b><span>Election Day: Nov. 3</span><b>•</b>{view==="turnout"?<><span>County feeds checked: {turnoutCheckedAt?formatTime(turnoutCheckedAt):"loading…"}</span><b>•</b><span>{initialLiveLoading?"Loading live county reports…":`${refreshedLiveCount}/67 county feeds retrieved • ${staleLiveCount} stale • ${stateFallback.length} state fallbacks`}</span></>:<span>State compilation: {data?.compiled||"loading…"} ET</span>}<button onClick={refresh} disabled={loading||turnoutLoading}>{loading||turnoutLoading?"Refreshing…":"Refresh now"}</button></div>
     </header>
 
     <section className={styles.deadlines} aria-label="2026 general election deadlines">
@@ -155,21 +226,21 @@ export default function GeneralElection(){
     </nav>
 
     <section className={styles.content}>
-      {data&&<ReportingNotice compiled={data.compiled} counties={data.counties} reportingNote={data.reportingNote}/>}
+      {view==="state"&&data&&<ReportingNotice compiled={data.compiled} counties={data.counties} reportingNote={data.reportingNote}/>}
       {view==="turnout"?<>
         {turnoutError&&<div className={styles.error}><b>County turnout feed issue:</b> {turnoutError}<button onClick={refreshTurnout}>Try again</button></div>}
-        <div className={styles.phase}><span>CURRENT BALLOT ACTIVITY</span><strong>Official statewide reported ballots</strong><p>{liveTurnout.length?`${liveTurnout.length} county live turnout feed${liveTurnout.length===1?" is":"s are"} active; counties without a live feed use Florida’s official VBM-return and Early Voting files.`:`County live-feed reporting has not begun. ${stateReportingCount}/67 counties already report returned VBM or Early Voting ballots through Florida’s official statewide county files.`}</p></div>
+        <div className={styles.phase}><span>LIVE VBM + EARLY VOTING + ELECTION DAY</span><strong>Latest reported turnout</strong><p>{initialLiveLoading?"Loading county reports. Live totals have not yet been verified in this view; a loading state does not mean early voting has not begun.":`${refreshedLiveCount} county feeds retrieved, ${staleLiveCount} retained after a failed or older refresh, and ${stateFallback.length} counties using the delayed state report. Latest county source timestamp: ${formatTime(latestCountyUpdate)}. Fallback compilation: ${data?.compiled||"unavailable"} ET.`}</p><p>Ballots cast = VBM returned + early voting + Election Day. Each county is counted once. Missing or delayed reporting is not evidence of zero voting.{mailOnlyCount>0?` ${mailOnlyCount} live source is VBM-only; its early-vote counts use the labeled state fallback, and live Election Day coverage is unavailable.`:""}</p></div>
         <RegistrationComparison cast={currentTotals} liveReturns={currentMailReturns} returns={voted} requested={{rep:repSent,dem:demSent,npa:npaSent,other:otherSent}} compiled={data?.compiled||"loading…"}>
         <div className={styles.cards}>
-          <article><label>Ballots cast</label><strong>{number.format(currentTotals.ballots)}</strong><small>Across {currentReportingCount} counties reporting cast ballots</small><CardPartyBreakdown values={currentTotals} label="Ballots cast"/></article>
-          <article><label>Vote by mail</label><strong>{number.format(currentTotals.mail)}</strong><small>{currentTotals.ballots?pct(currentTotals.mail/currentTotals.ballots*100):"—"} of ballots cast</small><CardPartyBreakdown values={currentMailReturns} label="Vote by mail"/></article>
-          <article><label>Early voting</label><strong>{number.format(currentTotals.early)}</strong><small>{currentTotals.ballots?pct(currentTotals.early/currentTotals.ballots*100):"—"} of ballots cast</small><CardPartyBreakdown values={currentEarlyReturns} label="Early voting"/></article>
-          <article><label>Election Day</label><strong>{number.format(turnoutTotals.electionDay)}</strong><small>Available when live county feeds report Election Day activity</small><CardPartyBreakdown values={currentElectionDayReturns} label="Election Day"/></article>
+          <article><label>Ballots cast</label><strong>{initialLiveLoading?"—":number.format(currentTotals.ballots)}</strong><small>{initialLiveLoading?"Live reports loading":`Reported totals across ${currentReportingCount} included counties`}</small><CardPartyBreakdown values={currentTotals} label="Ballots cast" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentTotals)}</small></article>
+          <article><label>Vote by mail</label><strong>{initialLiveLoading?"—":number.format(currentTotals.mail)}</strong><small>{currentTotals.ballots?pct(currentTotals.mail/currentTotals.ballots*100):"—"} of ballots cast</small><CardPartyBreakdown values={currentMailReturns} label="Vote by mail" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentMailReturns)}</small></article>
+          <article><label>Early voting</label><strong>{initialLiveLoading?"—":number.format(currentTotals.early)}</strong><small>{initialLiveLoading?"Live reports loading":`${currentTotals.ballots?pct(currentTotals.early/currentTotals.ballots*100):"—"} of reported ballots • ${inPersonFeedCount}/67 current in-person feeds`}</small>{inPersonUnreported&&<small>Partial live coverage; delayed state figures included.</small>}<CardPartyBreakdown values={currentEarlyReturns} label="Early voting" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentEarlyReturns)}</small></article>
+          <article><label>Election Day</label><strong>{initialLiveLoading?"—":number.format(turnoutTotals.electionDay)}</strong><small>Reported activity only; unavailable feeds are not verified zeroes.</small><CardPartyBreakdown values={currentElectionDayReturns} label="Election Day" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentElectionDayReturns)}</small></article>
         </div>
         </RegistrationComparison>
         <section className={styles.tableCard}>
-          <div className={styles.tableHead}><div><h2>Live county turnout feeds</h2><p>This table shows TQV/ElectionLink feeds as they activate. Until then, current VBM returns are already included in the summary above and on the interactive map from Florida’s official county files.</p></div><input value={turnoutQuery} onChange={e=>setTurnoutQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search live turnout counties"/></div>
-          <div className={styles.tableWrap}><table><thead><tr><th><TurnoutSortButton k="name">County</TurnoutSortButton></th><th><TurnoutSortButton k="ballots">Ballots cast</TurnoutSortButton></th><th><TurnoutSortButton k="turnout">Turnout</TurnoutSortButton></th><th><TurnoutSortButton k="mail">VBM</TurnoutSortButton></th><th><TurnoutSortButton k="early">Early vote</TurnoutSortButton></th><th><TurnoutSortButton k="electionDay">Election Day</TurnoutSortButton></th><th><TurnoutSortButton k="rep">REP</TurnoutSortButton></th><th><TurnoutSortButton k="dem">DEM</TurnoutSortButton></th><th>NPA</th><th><TurnoutSortButton k="margin">D–R margin</TurnoutSortButton></th><th><TurnoutSortButton k="updated">Last county update</TurnoutSortButton></th></tr></thead><tbody>{turnoutRows.map(c=><tr key={c.code}><td><a href={turnoutReportUrl(c)} target="_blank" rel="noreferrer"><b>{c.name}</b><span>{c.code} • {turnoutSourceLabel(c)} ↗</span></a></td>{c.status==="live"?<><td><b>{number.format(c.ballots)}</b></td><td><b>{pct(c.turnout)}</b></td><td>{number.format(c.mail)}</td><td>{number.format(c.early)}</td><td>{number.format(c.electionDay)}</td><td className={styles.rep}>{number.format(c.rep)}</td><td className={styles.dem}>{number.format(c.dem)}</td><td>{number.format(c.npa)}</td><td className={c.dem>=c.rep?styles.dem:styles.rep}>{c.dem>=c.rep?"D":"R"} +{number.format(Math.abs(c.dem-c.rep))}</td><td>{formatTime(c.updated)}</td></>:<td colSpan={10}>General Election turnout feed not published yet — open county report ↗</td>}</tr>)}</tbody></table></div>
+          <div className={styles.tableHead}><div><h2>Live county turnout feeds</h2><p>County source timestamps are separate from the last check time. Stale rows retain the last verified report. A VBM-only source cannot establish an early-voting or Election Day count; those cells remain unreported here.</p></div><input value={turnoutQuery} onChange={e=>setTurnoutQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search live turnout counties"/></div>
+          <div className={styles.tableWrap}><table><thead><tr><th><TurnoutSortButton k="name">County</TurnoutSortButton></th><th><TurnoutSortButton k="ballots">Ballots cast</TurnoutSortButton></th><th><TurnoutSortButton k="turnout">Turnout</TurnoutSortButton></th><th><TurnoutSortButton k="mail">VBM</TurnoutSortButton></th><th><TurnoutSortButton k="early">Early vote</TurnoutSortButton></th><th><TurnoutSortButton k="electionDay">Election Day</TurnoutSortButton></th><th><TurnoutSortButton k="rep">REP</TurnoutSortButton></th><th><TurnoutSortButton k="dem">DEM</TurnoutSortButton></th><th>NPA</th><th><TurnoutSortButton k="margin">D–R margin</TurnoutSortButton></th><th><TurnoutSortButton k="updated">Last county update</TurnoutSortButton></th></tr></thead><tbody>{turnoutRows.map(c=><tr key={c.code}><td><a href={turnoutReportUrl(c)} target="_blank" rel="noreferrer"><b>{c.name}</b><span>{c.code} • {turnoutSourceLabel(c)}{c.stale?" • STALE — last verified":""}{vbmOnlySource(c)?" • VBM only":""} ↗</span></a></td>{c.status==="live"?<><td><b>{number.format(c.ballots)}</b></td><td><b>{c.registered>0?pct(c.turnout):"—"}</b></td><td>{number.format(c.mail)}</td><td>{vbmOnlySource(c)?"Not reported":number.format(c.early)}</td><td>{vbmOnlySource(c)?"Not reported":number.format(c.electionDay)}</td><td className={styles.rep}>{number.format(c.rep)}</td><td className={styles.dem}>{number.format(c.dem)}</td><td>{number.format(c.npa)}</td><td className={c.dem>=c.rep?styles.dem:styles.rep}>{c.dem>=c.rep?"D":"R"} +{number.format(Math.abs(c.dem-c.rep))}</td><td>{formatTime(c.updated)}</td></>:<td colSpan={10}>Live report unavailable or not verified — open county report ↗</td>}</tr>)}</tbody></table></div>
         </section>
       </>:<>
         {error&&<div className={styles.error}><b>Ballot activity feed issue:</b> {error}<button onClick={refreshBallotActivity}>Try again</button></div>}
@@ -179,7 +250,7 @@ export default function GeneralElection(){
           <article><label>VBM sent / provided</label><strong>{number.format(sentTotal)}</strong><small>Outstanding + returned</small></article>
           <article><label>Outstanding VBM</label><strong>{number.format(provided.total)}</strong><small>Provided, not yet returned</small></article>
           <article><label>Returned VBM</label><strong>{number.format(votedTotal)}</strong><small>{pct(returnPct)} return rate</small></article>
-          <article><label>State early votes</label><strong>{number.format(early.total)}</strong><small>Updates when early voting begins</small></article>
+          <article><label>State early votes</label><strong>{number.format(early.total)}</strong><small>Prior-day activity; not an intraday early-vote total</small></article>
         </div>
         </RegistrationComparison>
         <section className={styles.tableCard}>
@@ -201,7 +272,7 @@ export default function GeneralElection(){
         <a href="https://www.facebook.com/share/1DA4uCufrb/?mibextid=wwXIfr" target="_blank" rel="noreferrer">Facebook Vanessa Brito</a>
         <a href="https://substack.com/@vanessabritomiami?r=5exhf8&utm_medium=ios&utm_source=stories&shareImageVariant=image" target="_blank" rel="noreferrer">Substack @vanessabritomiami</a>
       </div>
-      <p>Sources: Florida Division of Elections Vote-by-Mail Request & Early Voting Statistics, Election 49894; Florida county Turnout Quick View reports; Broward County official ElectionLink reporting. Figures update as county election offices publish new data. Dashboard refreshes automatically every five minutes.</p>
+      <p>Sources: Florida Division of Elections Vote-by-Mail Request & Early Voting Statistics, Election 49894; Florida county Turnout Quick View reports; Broward County official ElectionLink reporting. Figures update as county election offices publish new data. Dashboard checks for updates every minute; county publication times vary. Delayed state figures and stale last-verified reports remain explicitly labeled.</p>
     </footer>
   </main>
 }
