@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./general.module.css";
+import EarlyVotingLocations from "./early-voting-locations";
 import RegistrationComparison from "./registration-comparison";
 import ReportingNotice from "./reporting-notice";
 import snapshot from "../../public/data/general-official-snapshot.json";
@@ -262,6 +263,7 @@ export default function GeneralElection(){
       <section className={styles.actions}><div><h2>Official voter resources</h2><p>{view==="turnout"?"Live turnout comes from official county reporting: Turnout Quick View for most counties and Broward's ElectionLink reporting for Broward.":"These VBM and early-voting figures are submitted by county election officials and compiled by the Florida Division of Elections."}</p></div><div><a href={electionDates} target="_blank" rel="noreferrer">Election dates ↗</a><a href={vbmInfo} target="_blank" rel="noreferrer">Vote-by-Mail rules ↗</a><a href={soeDirectory} target="_blank" rel="noreferrer">Find your county SOE ↗</a><a href={officialStats} target="_blank" rel="noreferrer">Florida source data ↗</a></div></section>
     </section>
 
+    <EarlyVotingLocations />
     <footer className={styles.footer}>
       <div className={styles.footerBrand}><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span><span>Dr. Vanessa Brito</span></div>
       <div className={styles.footerContact}>

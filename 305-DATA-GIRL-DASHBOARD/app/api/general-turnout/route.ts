@@ -209,6 +209,30 @@ async function county(code:string,name:string){
 
 export async function GET(request:NextRequest){
   const view=request.nextUrl.searchParams.get("view");
+  if(view==="locations"){
+    const code=String(request.nextUrl.searchParams.get("county")||"").toUpperCase();
+    if(!counties[code]) return NextResponse.json({error:"Choose a valid county."},{status:400});
+    try{
+      const data=await generalElectionData(code);
+      const byLocation=data?.Turnout?.LocationParty?.EarlyVoting;
+      const metadata=data?.Location?.EarlyVoting;
+      if(!byLocation||!metadata) throw new Error("Location totals not published");
+      const locations=Object.entries(byLocation).map(([id,raw])=>{
+        const split=emptyMethod();
+        for(const [party,value] of Object.entries(raw as Record<string,number>)){
+          if(!Number.isSafeInteger(value)||value<0) throw new Error("Invalid party count");
+          const key=party==="DEM"?"dem":party==="REP"?"rep":party==="NPA"?"npa":"other";
+          split[key]+=value;
+        }
+        if(!metadata[id]?.Name) throw new Error("Missing location metadata");
+        return {id,name:String(metadata[id].Name),address:String(metadata[id].Address||""),...split,total:split.dem+split.rep+split.npa+split.other};
+      }).sort((a,b)=>a.name.localeCompare(b.name));
+      if(!locations.length) throw new Error("No published location rows");
+      const reported=Object.values(data.Turnout.PartyType||{}).reduce((total:number,v:any)=>total+Number(v.EarlyVoting||0),0);
+      if(locations.reduce((total,r)=>total+r.total,0)!==reported) throw new Error("Location totals do not reconcile to county early voting");
+      return NextResponse.json({county:{code,name:counties[code]},updated:data.Summary.LastUpdatedTime,sourceUrl:source(code),locations},{headers:{"Cache-Control":"public, max-age=30, s-maxage=60"}});
+    }catch{return NextResponse.json({error:`${counties[code]} has not provided a usable early-voting location-by-party feed. Check its official election website.`},{status:404,headers:{"Cache-Control":"no-store"}});}
+  }
   if(view==="precincts"){
     const code=String(request.nextUrl.searchParams.get("county")||"").toUpperCase();
     const name=counties[code];
