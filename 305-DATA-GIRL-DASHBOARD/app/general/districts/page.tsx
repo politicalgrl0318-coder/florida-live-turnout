@@ -5,9 +5,9 @@ import { geoMercator, geoPath } from "d3-geo";
 import styles from "./districts.module.css";
 
 type Chamber = "congressional" | "house" | "senate";
-type Metric = "margin" | "returned" | "rate" | "sent";
+type Metric = "margin" | "returned" | "rate" | "sent" | "early" | "cast";
 type DistrictRow = {
-  district:string;
+  district:string;early:number;cast:number;demEarly:number;repEarly:number;npaEarly:number;otherEarly:number;demCast:number;repCast:number;npaCast:number;otherCast:number;
   demSent:number;repSent:number;npaSent:number;otherSent:number;
   demRate:number;repRate:number;npaRate:number;otherRate:number;
   demRateRank:number|null;repRateRank:number|null;npaRateRank:number|null;otherRateRank:number|null;
@@ -31,7 +31,7 @@ type DistrictPayload = {
   dataThrough:string;
   complete:boolean;
   coverage:{countiesLoaded:number;countiesExpected:number;note:string};
-  statewide:{provided:number;returned:number;sent:number;demReturned:number;repReturned:number;npaReturned:number;otherReturned:number};
+  statewide:{early:number;cast:number;provided:number;returned:number;sent:number;demReturned:number;repReturned:number;npaReturned:number;otherReturned:number};
   files:Record<Chamber,string[]>;
   definitions:{provided:string;returned:string;sent:string;returnRate:string};
 };
@@ -63,12 +63,16 @@ function marginLabel(row?:DistrictRow){
   return (row.drReturnMargin>0?"D":"R") + " +" + number.format(Math.abs(row.drReturnMargin));
 }
 function metricValue(row:DistrictRow, metric:Metric){
+  if(metric==="early")return row.early;
+  if(metric==="cast")return row.cast;
   if(metric==="margin") return Math.abs(row.drReturnMargin);
   if(metric==="returned") return row.returned;
   if(metric==="rate") return row.returnRate;
   return row.sent;
 }
 function metricLabel(metric:Metric){
+  if(metric==="early")return "Early in-person ballots";
+  if(metric==="cast")return "Combined ballots cast (mail + early)";
   if(metric==="margin") return "D–R return margin";
   if(metric==="returned") return "VBM returned";
   if(metric==="rate") return "VBM return rate";
@@ -172,7 +176,7 @@ export default function DistrictsPage(){
     <header className={styles.hero}>
       <div className={styles.eyebrow}><i/> DISTRICT RESULTS + MAPS</div>
       <h1>Florida 2026 district turnout</h1>
-      <p>Vote-by-mail activity by congressional, Florida House and Florida Senate district, built from the latest verified county voter-level VBM files. Coverage and reporting dates are shown below.</p>
+      <p>Vote-by-mail and early in-person activity by congressional, Florida House and Florida Senate district, built from separately verified county voter-level sources. Coverage and reporting dates are shown below.</p>
       <div className={styles.meta}><span>Election 49894</span><b>•</b><span>General Election: Nov. 3</span><b>•</b><span>Voter file: {data?.snapshotCompiled||"loading…"} • activity through {data?.dataThrough||"loading…"}</span><b>•</b><span>{data?data.coverage.countiesLoaded+"/67 counties loaded":"loading…"}</span></div>
     </header>
 
@@ -184,17 +188,17 @@ export default function DistrictsPage(){
         <div className={styles.segment} aria-label="Choose district type">
           {(Object.keys(configs) as Chamber[]).map(k=><button key={k} className={chamber===k?styles.active:""} onClick={()=>setChamber(k)}>{configs[k].label}</button>)}
         </div>
-        <label>Map measure<select value={metric} onChange={e=>setMetric(e.target.value as Metric)}><option value="margin">D–R return margin</option><option value="returned">VBM returned</option><option value="rate">VBM return rate</option><option value="sent">VBM sent / provided</option></select></label>
+        <label>Map measure<select value={metric} onChange={e=>setMetric(e.target.value as Metric)}><option value="margin">D–R return margin</option><option value="returned">VBM returned</option><option value="rate">VBM return rate</option><option value="sent">VBM sent / provided</option><option value="early">Early in-person ballots</option><option value="cast">Combined ballots cast</option></select></label>
       </div>
 
       <div className={styles.cards}>
         <article><span>VBM sent / provided</span><strong>{statewide?number.format(statewide.sent):"—"}</strong><small>{statewide?number.format(statewide.provided)+" still outstanding":"Statewide package"}</small></article>
         <article><span>VBM returned</span><strong>{statewide?number.format(statewide.returned):"—"}</strong><small>{statewide&&statewide.sent?pct(statewide.returned/statewide.sent*100):"—"} statewide return rate</small></article>
-        <article><span>DEM returns</span><strong className={styles.dem}>{statewide?number.format(statewide.demReturned):"—"}</strong><small>{statewide&&statewide.returned?pct(statewide.demReturned/statewide.returned*100):"—"} of statewide returns</small></article>
-        <article><span>REP returns</span><strong className={styles.rep}>{statewide?number.format(statewide.repReturned):"—"}</strong><small>{statewide&&statewide.returned?pct(statewide.repReturned/statewide.returned*100):"—"} of statewide returns</small></article>
+        <article><span>Early in-person ballots</span><strong>{statewide?number.format(statewide.early):"—"}</strong><small>Separate October 20 EVL archive</small></article>
+        <article><span>Combined ballots cast</span><strong>{statewide?number.format(statewide.cast):"—"}</strong><small>VBM returned + early in person</small></article>
       </div>
 
-      <section className={styles.method}><h2>Snapshot and reporting status</h2><p>District data uses {data?.sourcePackage||"the voter-level package"}. Statewide/county live data on the Dashboard is separately timestamped. Daily district changes compare {data?.baselineDate||"the prior package"}.</p><p>{data?number.format(data.excludedCongressional.returned):"—"} returned ballots and {data?number.format(data.excludedCongressional.sent):"—"} P + V records have no valid congressional assignment and remain in statewide totals.</p><p>{data?.coverage.note} Zero or low reported returns can reflect processing and reporting timing. Party registration is not candidate choice; these figures are reported mail-return activity, not a turnout forecast.</p></section>
+      <section className={styles.method}><h2>Snapshot and reporting status</h2><p>District data uses {data?.sourcePackage||"the voter-level package"}. Statewide/county live data on the Dashboard is separately timestamped. Daily district changes compare {data?.baselineDate||"the prior package"}.</p><p>{data?number.format(data.excludedCongressional.returned):"—"} returned ballots and {data?number.format(data.excludedCongressional.sent):"—"} P + V records have no valid congressional assignment and remain in statewide totals.</p><p>{data?.coverage.note} Zero or low reported returns can reflect processing and reporting timing. Party registration is not candidate choice; these figures are reported mail and early-voting activity, not a turnout forecast.</p></section>
       <section className={styles.mapCard}>
         <div className={styles.mapHead}><div><h2>{config.label}</h2><p>{metricLabel(metric)} • district totals come from the county voter-level files.</p></div><a href={config.sourceUrl} target="_blank" rel="noreferrer">Official district boundaries ↗</a></div>
         {!mapError&&<div className={styles.mapGrid}>
@@ -210,7 +214,7 @@ export default function DistrictsPage(){
           <aside className={styles.detail}>
             <span>Selected district</span><h3>{selected?config.short+"-"+selected:"—"}</h3>
             {selectedRow?<><strong className={selectedRow.drReturnMargin>=0?styles.dem:styles.rep}>{marginLabel(selectedRow)}</strong><div className={styles.detailGrid}>
-              <div><small>VBM sent</small><b>{number.format(selectedRow.sent)}</b></div><div><small>Returned</small><b>{number.format(selectedRow.returned)}</b></div><div><small>Return rate</small><b>{pct(selectedRow.returnRate)}</b></div><div><small>DEM</small><b>{number.format(selectedRow.demReturned)}</b></div><div><small>REP</small><b>{number.format(selectedRow.repReturned)}</b></div><div><small>NPA</small><b>{number.format(selectedRow.npaReturned)}</b></div><div><small>Daily return change</small><b>{selectedRow.changeReturned===null?"Unavailable":`${selectedRow.changeReturned>=0?"+":""}${number.format(selectedRow.changeReturned)}`}</b></div>
+              <div><small>VBM sent</small><b>{number.format(selectedRow.sent)}</b></div><div><small>Returned</small><b>{number.format(selectedRow.returned)}</b></div><div><small>Early in person</small><b>{number.format(selectedRow.early)}</b></div><div><small>Combined ballots cast</small><b>{number.format(selectedRow.cast)}</b></div><div><small>Return rate</small><b>{pct(selectedRow.returnRate)}</b></div><div><small>DEM</small><b>{number.format(selectedRow.demReturned)}</b></div><div><small>REP</small><b>{number.format(selectedRow.repReturned)}</b></div><div><small>NPA</small><b>{number.format(selectedRow.npaReturned)}</b></div><div><small>Daily return change</small><b>{selectedRow.changeReturned===null?"Unavailable":`${selectedRow.changeReturned>=0?"+":""}${number.format(selectedRow.changeReturned)}`}</b></div>
             </div></>:<p>No usable district assignment is loaded for this boundary.</p>}
           </aside>
         </div>}
@@ -218,8 +222,8 @@ export default function DistrictsPage(){
       </section>
 
       <section className={styles.tableCard}>
-        <div className={styles.tableHead}><div><h2>{config.label} table</h2><p>{rowsLoading?"Loading statewide district records…":"All "+config.count+" districts • sortable VBM activity • party rate ranks compare the same party within this chamber"}</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={"Search "+config.short+"…"}/></div>
-        <div className={styles.tableWrap}><table><thead><tr><th><SortButton k="district">District</SortButton></th><th><SortButton k="sent">VBM sent</SortButton></th><th><SortButton k="returned">Returned</SortButton></th><th><SortButton k="rate">Return rate</SortButton></th><th><SortButton k="dem">DEM</SortButton></th><th><SortButton k="rep">REP</SortButton></th><th><SortButton k="npa">NPA</SortButton></th><th>Other</th><th><SortButton k="margin">D–R margin</SortButton></th><th>Daily returns</th><th>DEM rate</th><th>REP rate</th><th>NPA rate</th><th>Other rate</th></tr></thead><tbody>{filtered.map(r=><tr key={r.district} onClick={()=>setSelected(r.district)}><td><b>{config.short}-{r.district}</b></td><td>{number.format(r.sent)}</td><td>{number.format(r.returned)}</td><td>{pct(r.returnRate)}</td><td className={styles.dem}>{number.format(r.demReturned)}</td><td className={styles.rep}>{number.format(r.repReturned)}</td><td>{number.format(r.npaReturned)}</td><td>{number.format(r.otherReturned)}</td><td className={r.drReturnMargin>=0?styles.dem:styles.rep}>{marginLabel(r)}</td><td>{r.changeReturned===null?"Unavailable":`${r.changeReturned>=0?"+":""}${number.format(r.changeReturned)}`}</td><td>{pct(r.demRate)} <small>{r.demRateRank===null?"Rank unavailable":`#${r.demRateRank}`}</small></td><td>{pct(r.repRate)} <small>{r.repRateRank===null?"Rank unavailable":`#${r.repRateRank}`}</small></td><td>{pct(r.npaRate)} <small>{r.npaRateRank===null?"Rank unavailable":`#${r.npaRateRank}`}</small></td><td>{pct(r.otherRate)} <small>{r.otherRateRank===null?"Rank unavailable":`#${r.otherRateRank}`}</small></td></tr>)}</tbody></table></div>
+        <div className={styles.tableHead}><div><h2>{config.label} table</h2><p>{rowsLoading?"Loading statewide district records…":"All "+config.count+" districts • sortable mail and early-voting activity • party rate ranks compare the same party within this chamber"}</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={"Search "+config.short+"…"}/></div>
+        <div className={styles.tableWrap}><table><thead><tr><th><SortButton k="district">District</SortButton></th><th><SortButton k="sent">VBM sent</SortButton></th><th><SortButton k="returned">Returned</SortButton></th><th><SortButton k="rate">Return rate</SortButton></th><th><SortButton k="dem">DEM</SortButton></th><th><SortButton k="rep">REP</SortButton></th><th><SortButton k="npa">NPA</SortButton></th><th>Other</th><th><SortButton k="margin">D–R margin</SortButton></th><th>Daily returns</th><th>DEM rate</th><th>REP rate</th><th>NPA rate</th><th>Other rate</th><th>Early in person</th><th>Combined cast</th><th>DEM cast</th><th>REP cast</th><th>NPA cast</th><th>Other cast</th></tr></thead><tbody>{filtered.map(r=><tr key={r.district} onClick={()=>setSelected(r.district)}><td><b>{config.short}-{r.district}</b></td><td>{number.format(r.sent)}</td><td>{number.format(r.returned)}</td><td>{pct(r.returnRate)}</td><td className={styles.dem}>{number.format(r.demReturned)}</td><td className={styles.rep}>{number.format(r.repReturned)}</td><td>{number.format(r.npaReturned)}</td><td>{number.format(r.otherReturned)}</td><td className={r.drReturnMargin>=0?styles.dem:styles.rep}>{marginLabel(r)}</td><td>{r.changeReturned===null?"Unavailable":`${r.changeReturned>=0?"+":""}${number.format(r.changeReturned)}`}</td><td>{pct(r.demRate)} <small>{r.demRateRank===null?"Rank unavailable":`#${r.demRateRank}`}</small></td><td>{pct(r.repRate)} <small>{r.repRateRank===null?"Rank unavailable":`#${r.repRateRank}`}</small></td><td>{pct(r.npaRate)} <small>{r.npaRateRank===null?"Rank unavailable":`#${r.npaRateRank}`}</small></td><td>{pct(r.otherRate)} <small>{r.otherRateRank===null?"Rank unavailable":`#${r.otherRateRank}`}</small></td><td>{number.format(r.early)}</td><td><b>{number.format(r.cast)}</b></td><td>{number.format(r.demCast)}</td><td>{number.format(r.repCast)}</td><td>{number.format(r.npaCast)}</td><td>{number.format(r.otherCast)}</td></tr>)}</tbody></table></div>
       </section>
 
       <section className={styles.method}>
