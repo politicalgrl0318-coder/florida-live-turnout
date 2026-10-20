@@ -14,7 +14,7 @@ export async function GET(request:NextRequest){
   const url=urls[chamber];
   if(!url) return NextResponse.json({error:"Choose congressional, house, or senate."},{status:400});
   try{
-    const upstream=await fetch(url,{headers:{Accept:"application/geo+json,application/json"},cache:"force-cache"});
+    const upstream=await fetch(url,{headers:{Accept:"application/geo+json,application/json"}});
     if(!upstream.ok) throw new Error("Boundary service returned "+upstream.status);
     const body=await upstream.text();
     return new NextResponse(body,{status:200,headers:{"Content-Type":"application/geo+json; charset=utf-8","Cache-Control":"public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800"}});
