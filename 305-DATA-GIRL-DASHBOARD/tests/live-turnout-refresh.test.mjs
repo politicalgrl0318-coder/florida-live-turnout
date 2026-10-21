@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import ts from 'typescript';
 
-const source = readFileSync(new URL('../app/general/page.tsx', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../app/general/page.tsx', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../app/general/county-reports.ts', import.meta.url), 'utf8');
 const ast = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const wanted = new Set(['isCurrentGeneral', 'usableCounty', 'mergeCountyRows', 'vbmOnlySource', 'sumParties']);
 const functions = ast.statements.filter(node => ts.isFunctionDeclaration(node) && wanted.has(node.name?.text));
 assert.equal(functions.length, wanted.size, 'All testable live-feed helpers must be present');
-const compiled = ts.transpileModule(functions.map(node => node.getText(ast)).join('\n'), {
+const compiled = ts.transpileModule(functions.map(node => node.getText(ast).replace(/^export /, '')).join('\n'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   reportDiagnostics: true
 });

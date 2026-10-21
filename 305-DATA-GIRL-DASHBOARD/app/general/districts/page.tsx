@@ -115,25 +115,29 @@ export default function DistrictsPage(){
 
   useEffect(()=>{
     if(!data)return;
-    setRowsLoading(true);setDataError("");
-    Promise.all((data.files[chamber]||[]).map(file=>fetch(file,{cache:"no-store"}).then(r=>{
+    const controller=new AbortController();
+    setRows([]);setSelected("");setRowsLoading(true);setDataError("");
+    Promise.all((data.files[chamber]||[]).map(file=>fetch(file,{cache:"no-store",signal:controller.signal}).then(r=>{
       if(!r.ok)throw new Error("District data file unavailable");
       return r.json() as Promise<DistrictRow[]>;
     })))
       .then(parts=>setRows(parts.flat().sort((a,b)=>Number(a.district)-Number(b.district))))
-      .catch(e=>setDataError(e instanceof Error?e.message:"District data unavailable"))
-      .finally(()=>setRowsLoading(false));
+      .catch(e=>{if(!controller.signal.aborted)setDataError(e instanceof Error?e.message:"District data unavailable")})
+      .finally(()=>{if(!controller.signal.aborted)setRowsLoading(false)});
+    return()=>controller.abort();
   },[data,chamber]);
 
   useEffect(()=>{
+    const controller=new AbortController();
     setBoundaries(null);setMapError("");
-    fetch("/api/district-boundaries?chamber="+chamber,{cache:"force-cache"})
+    fetch("/api/district-boundaries?chamber="+chamber,{cache:"force-cache",signal:controller.signal})
       .then(r=>{if(!r.ok)throw new Error("Official boundary service did not respond");return r.json()})
       .then((j:GeoCollection)=>{
         if(!j?.features?.length)throw new Error("No district geometry returned");
         setBoundaries(j);
       })
-      .catch(e=>setMapError(e instanceof Error?e.message:"Boundary map unavailable"));
+      .catch(e=>{if(!controller.signal.aborted)setMapError(e instanceof Error?e.message:"Boundary map unavailable")});
+    return()=>controller.abort();
   },[chamber]);
 
   const rowMap=useMemo(()=>new Map(rows.map(r=>[String(Number(r.district)),r])),[rows]);

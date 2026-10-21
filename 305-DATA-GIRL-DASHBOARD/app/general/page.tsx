@@ -1,5 +1,6 @@
 "use client";
 
+import { isCurrentGeneral, usableCounty, mergeCountyRows, vbmOnlySource } from "./county-reports";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./general.module.css";
 import EarlyVotingLocations from "./early-voting-locations";
@@ -36,35 +37,6 @@ function turnoutReportUrl(row:TurnoutRow){return row.code==="BRO"?browardResults
 function turnoutSourceLabel(row:TurnoutRow){return row.code==="BRO"?"Broward official report":"TQV live report"}
 function sumParties(splits:PartySplit[]):PartySplit{return splits.reduce((a,s)=>({dem:a.dem+s.dem,rep:a.rep+s.rep,npa:a.npa+s.npa,other:a.other+s.other}),{dem:0,rep:0,npa:0,other:0})}
 
-// Validate each county independently; one failed source must not erase the rest.
-function isCurrentGeneral(name:unknown,date:unknown){
-  return /general/i.test(String(name))&&/^(?:11\/0?3\/2026|2026-11-03)(?:$|T|\s)/.test(String(date));
-}
-function usableCounty(row:TurnoutRow){
-  if(!row||typeof row.code!=="string"||!row.code.match(/^[A-Z]{3}$/)) return false;
-  if(row.status==="unavailable") return true;
-  if(row.status!=="live"||!isCurrentGeneral(row.electionName,row.electionDate)) return false;
-  const keys=["mail","early","electionDay","ballots","registered","dem","rep","npa","other"] as const;
-  if(keys.some(key=>!Number.isSafeInteger(row[key])||row[key]<0)) return false;
-  const methods=[[row.mail,row.mailParty],[row.early,row.earlyParty],[row.electionDay,row.electionDayParty]] as const;
-  if(methods.some(([total,split])=>!split||[split.dem,split.rep,split.npa,split.other].some(v=>!Number.isSafeInteger(v)||v<0)||total!==split.dem+split.rep+split.npa+split.other)) return false;
-  return row.ballots===row.mail+row.early+row.electionDay&&(["dem","rep","npa","other"] as const).every(p=>row[p]===row.mailParty[p]+row.earlyParty[p]+row.electionDayParty[p]);
-}
-function mergeCountyRows(previous:TurnoutRow[],incoming:TurnoutRow[]){
-  const rows=new Map(previous.map(row=>[row.code,{...row,stale:row.status==="live"}]));
-  for(const row of incoming){
-    if(!usableCounty(row)) continue;
-    const saved=rows.get(row.code);
-    if(saved?.status==="live"){
-      if(row.status!=="live") continue;
-      const oldTime=Date.parse(saved.updated||""),newTime=Date.parse(row.updated||"");
-      if(Number.isFinite(oldTime)&&(!Number.isFinite(newTime)||newTime<oldTime)) continue;
-    }
-    rows.set(row.code,{...row,stale:false});
-  }
-  return [...rows.values()];
-}
-function vbmOnlySource(row:TurnoutRow){return /\/AbsenteeTurnOut\//i.test(row.sourceUrl)}
 function rawMargin(values:PartySplit){const gap=values.dem-values.rep;return gap===0?"Even":`${gap>0?"D":"R"} +${number.format(Math.abs(gap))}`}
 
 function CardPartyBreakdown({values,label,pending=false}:{values:PartySplit;label:string;pending?:boolean}){
@@ -234,7 +206,7 @@ export default function GeneralElection(){
         <RegistrationComparison cast={currentTotals} liveReturns={currentMailReturns} returns={voted} requested={{rep:repSent,dem:demSent,npa:npaSent,other:otherSent}} compiled={data?.compiled||"loading…"}>
         <div className={styles.cards}>
           <article><label>Ballots cast</label><strong>{initialLiveLoading?"—":number.format(currentTotals.ballots)}</strong><small>{initialLiveLoading?"Live reports loading":`Reported totals across ${currentReportingCount} included counties`}</small><CardPartyBreakdown values={currentTotals} label="Ballots cast" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentTotals)}</small></article>
-          <article><label>Vote by mail</label><strong>{initialLiveLoading?"—":number.format(currentTotals.mail)}</strong><small>{currentTotals.ballots?pct(currentTotals.mail/currentTotals.ballots*100):"—"} of ballots cast</small><CardPartyBreakdown values={currentMailReturns} label="Vote by mail" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentMailReturns)}</small></article>
+          <article><label>Vote by mail</label><strong>{initialLiveLoading?"—":number.format(currentTotals.mail)}</strong><small>{!initialLiveLoading&&currentTotals.ballots?pct(currentTotals.mail/currentTotals.ballots*100):"—"} of ballots cast</small><CardPartyBreakdown values={currentMailReturns} label="Vote by mail" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentMailReturns)}</small></article>
           <article><label>Early voting</label><strong>{initialLiveLoading?"—":number.format(currentTotals.early)}</strong><small>{initialLiveLoading?"Live reports loading":`${currentTotals.ballots?pct(currentTotals.early/currentTotals.ballots*100):"—"} of reported ballots • ${inPersonFeedCount}/67 current in-person feeds`}</small>{inPersonUnreported&&<small>Partial live coverage; delayed state figures included.</small>}<CardPartyBreakdown values={currentEarlyReturns} label="Early voting" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentEarlyReturns)}</small></article>
           <article><label>Election Day</label><strong>{initialLiveLoading?"—":number.format(turnoutTotals.electionDay)}</strong><small>Reported activity only; unavailable feeds are not verified zeroes.</small><CardPartyBreakdown values={currentElectionDayReturns} label="Election Day" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentElectionDayReturns)}</small></article>
         </div>

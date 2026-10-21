@@ -13,6 +13,9 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const require = createRequire(import.meta.url);
 const snapshot = require('../public/data/general-official-snapshot.json');
 const parties = ['rep', 'dem', 'npa', 'other'];
+// Test pre-opening behavior independently of the current dated snapshot.
+for (const county of snapshot.counties) county.early = {rep:0,dem:0,npa:0,other:0,total:0};
+snapshot.totals.early = {rep:0,dem:0,npa:0,other:0,total:0};
 const format = n => n.toLocaleString('en-US');
 const sum = split => parties.reduce((n, p) => n + split[p], 0);
 
@@ -43,7 +46,7 @@ function renderDashboard(view, counties = [], state = snapshot) {
       if (specifier.endsWith('.css')) return {};
       if (specifier.startsWith('.')) {
         const resolved = path.resolve(path.dirname(filename), specifier);
-        return specifier.endsWith('.json') ? require(resolved) : load(resolved + '.tsx');
+        return specifier.endsWith('.json') ? require(resolved) : load(resolved + (fs.existsSync(resolved + '.tsx') ? '.tsx' : '.ts'));
       }
       return require(specifier);
     };
