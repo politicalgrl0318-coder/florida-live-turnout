@@ -1,0 +1,26 @@
+name: Turnout correctness and production build
+on:
+  push:
+    branches: [main, fix/live-turnout-method-selection-20261024]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: 305-DATA-GIRL-DASHBOARD
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reconciliation regression tests
+        run: node --experimental-strip-types --test tests/turnout-selection.test.mjs
+      - name: Install pinned dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify production build
+        run: npm run build

@@ -1,252 +1,147 @@
 "use client";
 
-import { isCurrentGeneral, usableCounty, mergeCountyRows, vbmOnlySource } from "./county-reports";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
+import {COUNTY_NAMES,countyFreshness,FRESHNESS_MINUTES,isCurrentGeneral,mergeCountyRows,METHODS,PARTIES,partySum,reconcileTurnout,RECONCILIATION_VERSION,sourceStamp,validSplit,zeroParties,type Method,type MethodReport,type PartySplit,type StateSplit,type TurnoutRow} from "./county-reports";
 import styles from "./general.module.css";
 import EarlyVotingLocations from "./early-voting-locations";
 import RegistrationComparison from "./registration-comparison";
 import ReportingNotice from "./reporting-notice";
 import snapshot from "../../public/data/general-official-snapshot.json";
 
-type Split={rep:number;dem:number;other:number;npa:number;total:number;compiled?:string};
-type CountyRow={code:string;name:string;sourceUrl:string;earlyVoting:string;provided:Split;voted:Split;early:Split;changeReturned?:number};
-type Payload={generatedAt:string;compiled:string;electionName:string;electionNumber:string;electionDate:string;totals:{provided:Split;voted:Split;early:Split;changeReturned?:number};counties:CountyRow[];savedSnapshot?:boolean;reportingNote?:string};
-type SortKey="name"|"sent"|"outstanding"|"returned"|"rate"|"early"|"margin";
-type PartySplit={dem:number;rep:number;npa:number;other:number};
-type TurnoutRow={code:string;name:string;sourceUrl:string;status:"live"|"unavailable";registered:number;ballots:number;turnout:number;mail:number;early:number;electionDay:number;dem:number;rep:number;npa:number;other:number;mailParty:PartySplit;earlyParty:PartySplit;electionDayParty:PartySplit;updated:string|null;electionName:string;electionDate:string;stale?:boolean};
+type CountyRow={code:string;name:string;sourceUrl:string;earlyVoting:string;provided:StateSplit;voted:StateSplit;early:StateSplit;changeReturned?:number};
+type Payload={generatedAt:string;compiled:string;electionName:string;electionNumber:string;electionDate:string;totals:{provided:StateSplit;voted:StateSplit;early:StateSplit;changeReturned?:number};counties:CountyRow[];savedSnapshot?:boolean;reportingNote?:string};
 type TurnoutPayload={generatedAt:string;electionName:string;electionDate:string;counties:TurnoutRow[]};
-type TurnoutSortKey="name"|"ballots"|"turnout"|"mail"|"early"|"electionDay"|"dem"|"rep"|"margin"|"updated";
-
+type SortKey="name"|"ballots"|"mail"|"early"|"electionDay"|"dem"|"rep"|"margin";
 const number=new Intl.NumberFormat("en-US");
+const n=(v:number)=>number.format(v);
 const pct=(v:number)=>Number.isFinite(v)?`${v.toFixed(2)}%`:"—";
-const formatTime=(v:string|null)=>{
-  if(!v) return "—";
-  const time=new Date(v);
-  return Number.isFinite(time.getTime())?new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"America/New_York",timeZoneName:"short"}).format(time):v;
-};
 const officialStats="https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats";
-const electionDates="https://dos.fl.gov/elections/for-voters/election-dates";
-const vbmInfo="https://dos.fl.gov/elections/for-voters/voting/vote-by-mail";
-const soeDirectory="https://dos.elections.myflorida.com/supervisors/";
-const browardResults="https://browardvotes.gov/results-information/election-results-information";
-
-function sent(s:Split,r:Split){return s.total+r.total}
-function partySent(s:Split,r:Split,key:"rep"|"dem"|"npa"|"other"){return s[key]+r[key]}
-function returnRate(row:CountyRow){const total=sent(row.provided,row.voted);return total?row.voted.total/total*100:0}
-function turnoutReportUrl(row:TurnoutRow){return row.code==="BRO"?browardResults:row.sourceUrl}
-function turnoutSourceLabel(row:TurnoutRow){return row.code==="BRO"?"Broward official report":"TQV live report"}
-function sumParties(splits:PartySplit[]):PartySplit{return splits.reduce((a,s)=>({dem:a.dem+s.dem,rep:a.rep+s.rep,npa:a.npa+s.npa,other:a.other+s.other}),{dem:0,rep:0,npa:0,other:0})}
-
-function rawMargin(values:PartySplit){const gap=values.dem-values.rep;return gap===0?"Even":`${gap>0?"D":"R"} +${number.format(Math.abs(gap))}`}
-
-function CardPartyBreakdown({values,label,pending=false}:{values:PartySplit;label:string;pending?:boolean}){
-  const colors={dem:"#2167b3",rep:"#bf3535",npa:"#596579",other:"#8155a3"};
-  const total=values.dem+values.rep+values.npa+values.other;
-  return <dl className={styles.cardParties} aria-label={`${label} by party`}>{(["dem","rep","npa","other"] as const).map(p=><div key={p}><dt style={{color:colors[p]}}>{p==="other"?"Other":p.toUpperCase()}</dt><dd><span>{pending?"—":number.format(values[p])}</span><small title={`Share of ${label.toLowerCase()}`}>{!pending&&total?pct(values[p]/total*100):"—"}</small></dd></div>)}</dl>;
+const labels:Record<Method,string>={mail:"Vote by mail",early:"Early voting",electionDay:"Election Day"};
+const colors={dem:"#2167b3",rep:"#bf3535",npa:"#596579",other:"#8155a3"};
+function time(v:string|null){if(!v)return "—";const stamp=sourceStamp(v);return stamp?.explicitZone?new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"America/New_York",timeZoneName:"short"}).format(new Date(stamp.min)):v;}
+function margin(v:PartySplit){const gap=v.dem-v.rep;return gap===0?"Even":`${gap>0?"D":"R"} +${n(Math.abs(gap))}`;}
+function sumParties(a:PartySplit,b:PartySplit){return {dem:a.dem+b.dem,rep:a.rep+b.rep,npa:a.npa+b.npa,other:a.other+b.other};}
+function validState(p:Payload){
+ if(!p||!isCurrentGeneral(p.electionName,p.electionDate)||String(p.electionNumber)!=="49894"||!Array.isArray(p.counties)||p.counties.length!==67||p.counties.some(c=>!COUNTY_NAMES[c.code])||new Set(p.counties.map(c=>c.code)).size!==67)return false;
+ for(const key of ["provided","voted","early"] as const){
+  if(!p.totals?.[key]||!validSplit(p.totals[key].total,p.totals[key]))return false;
+  if(p.counties.some(c=>!c[key]||!validSplit(c[key].total,c[key])))return false;
+  if(p.counties.reduce((s,c)=>s+c[key].total,0)!==p.totals[key].total)return false;
+  if(PARTIES.some(k=>p.counties.reduce((s,c)=>s+c[key][k],0)!==p.totals[key][k]))return false;
+ }
+ return !!sourceStamp(p.compiled,true);
+}
+function Breakdown({values,pending=false}:{values:PartySplit;pending?:boolean}){
+ const total=partySum(values);
+ return <dl className={styles.cardParties}>{PARTIES.map(p=><div key={p}><dt style={{color:colors[p]}}>{p==="other"?"Other":p.toUpperCase()}</dt><dd><span>{pending?"—":n(values[p])}</span><small>{!pending&&total?pct(values[p]/total*100):"—"}</small></dd></div>)}</dl>;
+}
+function Provenance({report}:{report:MethodReport|null}){
+ if(!report)return <span>Not reported</span>;
+ return <span><b>{n(report.total)}</b><br/><small><a href={report.sourceUrl} target="_blank" rel="noreferrer">{report.source==="state"?"STATE FALLBACK":report.retained?"RETAINED COUNTY REPORT":report.freshness==="recent"?"RECENT COUNTY REPORT":"DELAYED / UNDATED COUNTY REPORT"} ↗</a><br/>{report.source==="state"?`Activity through ${report.activityThrough}; filed ${report.reported} ET`:`Source: ${time(report.reported)}`}{report.note&&<><br/>{report.note}</>}</small></span>;
 }
 
 export default function GeneralElection(){
-  const[view,setView]=useState<"turnout"|"state">("turnout");
-  const[data,setData]=useState<Payload|null>(snapshot);
-  const[error,setError]=useState("");
-  const[loading,setLoading]=useState(true);
-  const[query,setQuery]=useState("");
-  const[sort,setSort]=useState<SortKey>("sent");
-  const[ascending,setAscending]=useState(false);
-  const[turnoutData,setTurnoutData]=useState<TurnoutPayload|null>(null);
-  const[turnoutError,setTurnoutError]=useState("");
-  const[turnoutLoading,setTurnoutLoading]=useState(true);
-  const[turnoutQuery,setTurnoutQuery]=useState("");
-  const[turnoutSort,setTurnoutSort]=useState<TurnoutSortKey>("ballots");
-  const[turnoutAscending,setTurnoutAscending]=useState(false);
-  const[turnoutCheckedAt,setTurnoutCheckedAt]=useState<string|null>(null);
-  const turnoutRequest=useRef(0);
-
-  async function refreshBallotActivity(){
-    setLoading(true);setError("");
-    try{
-      const r=await fetch(`/api/general?t=${Date.now()}`,{cache:"no-store",signal:AbortSignal.timeout(12000)});
-      const body=await r.json();
-      const saved=new Map<string,CountyRow>(snapshot.counties.map(c=>[c.code,c]));
-      if(body.compiled===snapshot.compiled)body.counties=body.counties.map((c:CountyRow)=>({...c,changeReturned:saved.get(c.code)?.changeReturned}));
-      if(!r.ok) throw new Error(body?.error||"The official Florida ballot-activity feed did not respond.");
-      setData(body);
-    }catch(e){setError(e instanceof Error?e.message:"Unable to load Florida general-election activity.")}
-    finally{setLoading(false)}
-  }
-
-  async function refreshTurnout(){
-    const requestId=++turnoutRequest.current;
-    setTurnoutLoading(true);setTurnoutError("");
-    try{
-      const stamp=Date.now();
-      const results=await Promise.allSettled(Array.from({length:5},async(_,batch)=>{
-        const response=await fetch(`/api/general-turnout?batch=${batch}&t=${stamp}`,{cache:"no-store",signal:AbortSignal.timeout(20000)});
-        if(!response.ok) throw new Error(`County batch ${batch+1} did not respond.`);
-        const payload=await response.json() as TurnoutPayload;
-        if(!Array.isArray(payload.counties)||!isCurrentGeneral(payload.electionName,payload.electionDate)) throw new Error(`County batch ${batch+1} returned an invalid election report.`);
-        return payload;
-      }));
-      if(requestId!==turnoutRequest.current) return;
-      const payloads=results.flatMap(result=>result.status==="fulfilled"?[result.value]:[]);
-      const incoming=payloads.flatMap(payload=>payload.counties);
-      const rejected=incoming.filter(row=>!usableCounty(row)).length;
-      const failed=results.length-payloads.length;
-      setTurnoutData(previous=>({
-        generatedAt:payloads.map(payload=>payload.generatedAt).filter(Boolean).sort().at(-1)||previous?.generatedAt||"",
-        electionName:"2026 General Election",electionDate:"11/03/2026",
-        counties:mergeCountyRows(previous?.counties||[],incoming)
-      }));
-      if(failed||rejected) setTurnoutError(`${failed} of 5 county batches unavailable; ${rejected} county reports failed reconciliation. Successful reports are included; last verified figures are retained where available and marked stale.`);
-    }catch(e){
-      if(requestId===turnoutRequest.current){
-        setTurnoutError(e instanceof Error?e.message:"Unable to load county turnout data.");
-        setTurnoutData(previous=>previous?{...previous,counties:mergeCountyRows(previous.counties,[])}:previous);
-      }
-    }finally{
-      if(requestId===turnoutRequest.current){setTurnoutCheckedAt(new Date().toISOString());setTurnoutLoading(false)}
-    }
-  }
-
-  async function refresh(){await Promise.all([refreshBallotActivity(),refreshTurnout()])}
-  useEffect(()=>{refresh();const t=setInterval(refresh,60000);return()=>{clearInterval(t);turnoutRequest.current++}},[]);
-
-  const rows=useMemo(()=>{
-    const list=(data?.counties??[]).filter(c=>c.name.toLowerCase().includes(query.toLowerCase())||c.code.toLowerCase().includes(query.toLowerCase()));
-    return [...list].sort((a,b)=>{
-      const value=(c:CountyRow)=>sort==="name"?c.name:sort==="sent"?sent(c.provided,c.voted):sort==="outstanding"?c.provided.total:sort==="returned"?c.voted.total:sort==="rate"?returnRate(c):sort==="early"?c.early.total:partySent(c.provided,c.voted,"dem")-partySent(c.provided,c.voted,"rep");
-      const av=value(a),bv=value(b);
-      return (typeof av==="string"?av.localeCompare(String(bv)):(Number(av)-Number(bv)))*(ascending?1:-1);
+ const [view,setView]=useState<"turnout"|"state">("turnout");
+ const [data,setData]=useState<Payload|null>(validState(snapshot as Payload)?snapshot as Payload:null);
+ const [turnoutData,setTurnoutData]=useState<TurnoutRow[]>([]);
+ const [loading,setLoading]=useState(true),[stateError,setStateError]=useState("");
+ const [turnoutError,setTurnoutError]=useState("");
+ const [checkedAt,setCheckedAt]=useState<string|null>(null),[now,setNow]=useState(0);
+ const [query,setQuery]=useState(""),[sort,setSort]=useState<SortKey>("ballots"),[ascending,setAscending]=useState(false);
+ const request=useRef(0),busy=useRef(false);
+ async function refresh(){
+  if(busy.current)return;
+  busy.current=true;const id=++request.current;setLoading(true);
+  const stamp=Date.now();
+  const stateTask=(async()=>{
+   try{
+    const response=await fetch(`/api/general?t=${stamp}`,{cache:"no-store",signal:AbortSignal.timeout(15000)});
+    if(!response.ok)throw new Error(`State report HTTP ${response.status}`);
+    const body=await response.json() as Payload;
+    if(!validState(body))throw new Error("State report failed election, county-inventory or party/method reconciliation checks.");
+    if(id!==request.current)return;
+    setData(previous=>{
+     const previousTime=sourceStamp(previous?.compiled,true)?.min||0,nextTime=sourceStamp(body.compiled,true)?.min||0;
+     return previous&&nextTime<previousTime?previous:body;
     });
-  },[data,query,sort,ascending]);
-
-  const turnoutRows=useMemo(()=>{
-    const list=(turnoutData?.counties??[]).filter(c=>c.name.toLowerCase().includes(turnoutQuery.toLowerCase())||c.code.toLowerCase().includes(turnoutQuery.toLowerCase()));
-    return [...list].sort((a,b)=>{
-      const value=(c:TurnoutRow)=>turnoutSort==="name"?c.name:turnoutSort==="margin"?c.dem-c.rep:turnoutSort==="updated"?(c.updated||""):c[turnoutSort];
-      const av=value(a),bv=value(b);
-      return (typeof av==="string"?av.localeCompare(String(bv)):(Number(av)-Number(bv)))*(turnoutAscending?1:-1);
-    });
-  },[turnoutData,turnoutQuery,turnoutSort,turnoutAscending]);
-
-  const provided=data?.totals.provided??{rep:0,dem:0,npa:0,other:0,total:0};
-  const voted=data?.totals.voted??{rep:0,dem:0,npa:0,other:0,total:0};
-  const early=data?.totals.early??{rep:0,dem:0,npa:0,other:0,total:0};
-  const sentTotal=sent(provided,voted);
-  const votedTotal=voted.total;
-  const returnPct=sentTotal?votedTotal/sentTotal*100:0;
-  const repSent=partySent(provided,voted,"rep"),demSent=partySent(provided,voted,"dem"),npaSent=partySent(provided,voted,"npa"),otherSent=partySent(provided,voted,"other");
-  const partyTotal=repSent+demSent+npaSent+otherSent||1;
-  const margin=demSent-repSent;
-
-  // A live absentee-only report does not establish zero in-person turnout.
-  // Preserve its mail counts, but label the state's early-vote fallback explicitly.
-  const liveTurnout=(turnoutData?.counties.filter(c=>c.status==="live")??[]).map(c=>{
-    if(!vbmOnlySource(c)) return c;
-    const ev=data?.counties.find(row=>row.code===c.code)?.early;
-    const earlyParty={dem:ev?.dem??0,rep:ev?.rep??0,npa:ev?.npa??0,other:ev?.other??0};
-    return {...c,early:ev?.total??0,earlyParty,ballots:c.mail+(ev?.total??0),electionDay:0,electionDayParty:{dem:0,rep:0,npa:0,other:0},...sumParties([c.mailParty,earlyParty])};
-  });
-  const initialLiveLoading=turnoutLoading&&!turnoutData;
-  const staleLiveCount=liveTurnout.filter(c=>c.stale).length;
-  const refreshedLiveCount=liveTurnout.length-staleLiveCount;
-  const mailOnlyCount=liveTurnout.filter(vbmOnlySource).length;
-  const inPersonFeedCount=liveTurnout.filter(c=>!c.stale&&!vbmOnlySource(c)).length;
-  const inPersonUnreported=liveTurnout.length<67||staleLiveCount>0||mailOnlyCount>0;
-  const latestCountyUpdate=liveTurnout.map(c=>c.updated).filter((v):v is string=>!!v&&Number.isFinite(Date.parse(v))).sort((a,b)=>Date.parse(a)-Date.parse(b)).at(-1)||null;
-  const turnoutTotals=liveTurnout.reduce((a,c)=>({registered:a.registered+c.registered,ballots:a.ballots+c.ballots,mail:a.mail+c.mail,early:a.early+c.early,electionDay:a.electionDay+c.electionDay,dem:a.dem+c.dem,rep:a.rep+c.rep,npa:a.npa+c.npa,other:a.other+c.other}),{registered:0,ballots:0,mail:0,early:0,electionDay:0,dem:0,rep:0,npa:0,other:0});
-  const liveCodes=new Set(liveTurnout.map(c=>c.code));
-  const stateFallback=(data?.counties??[]).filter(c=>!liveCodes.has(c.code)&&(c.voted.total>0||c.early.total>0));
-  const stateReportingCount=new Set((data?.counties??[]).filter(c=>c.voted.total>0||c.early.total>0).map(c=>c.code)).size;
-  const fallbackTotals=stateFallback.reduce((a,c)=>({ballots:a.ballots+c.voted.total+c.early.total,mail:a.mail+c.voted.total,early:a.early+c.early.total,dem:a.dem+c.voted.dem+c.early.dem,rep:a.rep+c.voted.rep+c.early.rep,npa:a.npa+c.voted.npa+c.early.npa,other:a.other+c.voted.other+c.early.other}),{ballots:0,mail:0,early:0,dem:0,rep:0,npa:0,other:0});
-  const currentTotals={ballots:turnoutTotals.ballots+fallbackTotals.ballots,mail:turnoutTotals.mail+fallbackTotals.mail,early:turnoutTotals.early+fallbackTotals.early,electionDay:turnoutTotals.electionDay,dem:turnoutTotals.dem+fallbackTotals.dem,rep:turnoutTotals.rep+fallbackTotals.rep,npa:turnoutTotals.npa+fallbackTotals.npa,other:turnoutTotals.other+fallbackTotals.other};
-  const currentReportingCount=new Set([...liveCodes,...stateFallback.map(c=>c.code)]).size;
-  const turnoutPartyTotal=currentTotals.dem+currentTotals.rep+currentTotals.npa+currentTotals.other||1;
-  const turnoutMargin=currentTotals.dem-currentTotals.rep;
-  const liveMailReturns=liveTurnout.reduce((a,c)=>({rep:a.rep+c.mailParty.rep,dem:a.dem+c.mailParty.dem,npa:a.npa+c.mailParty.npa,other:a.other+c.mailParty.other}),{rep:0,dem:0,npa:0,other:0});
-  const currentMailReturns=stateFallback.reduce((a,c)=>({rep:a.rep+c.voted.rep,dem:a.dem+c.voted.dem,npa:a.npa+c.voted.npa,other:a.other+c.voted.other}),liveMailReturns);
-  const currentEarlyReturns=sumParties([...liveTurnout.map(c=>c.earlyParty),...stateFallback.map(c=>c.early)]);
-  const currentElectionDayReturns=sumParties(liveTurnout.map(c=>c.electionDayParty));
-  const stateCast={rep:voted.rep+early.rep,dem:voted.dem+early.dem,npa:voted.npa+early.npa,other:voted.other+early.other};
-
-
-  function chooseSort(k:SortKey){if(sort===k)setAscending(!ascending);else{setSort(k);setAscending(k==="name")}}
-  function chooseTurnoutSort(k:TurnoutSortKey){if(turnoutSort===k)setTurnoutAscending(!turnoutAscending);else{setTurnoutSort(k);setTurnoutAscending(k==="name")}}
-  const SortButton=({k,children}:{k:SortKey;children:React.ReactNode})=><button className={styles.sort} onClick={()=>chooseSort(k)}>{children}<span>{sort===k?(ascending?"↑":"↓"):""}</span></button>;
-  const TurnoutSortButton=({k,children}:{k:TurnoutSortKey;children:React.ReactNode})=><button className={styles.sort} onClick={()=>chooseTurnoutSort(k)}>{children}<span>{turnoutSort===k?(turnoutAscending?"↑":"↓"):""}</span></button>;
-
-  return <main className={styles.page}>
-    <header className={styles.hero}>
-      <div className={styles.brand}><img src="/vanessa-brito.jpg" alt="Dr. Vanessa Brito, 305 Data Girl"/><div><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span></div></div>
-      <div className={styles.eyebrow}><i/> OFFICIAL FLORIDA ELECTION DATA</div>
-      <h1>Florida General Election 2026</h1>
-      <p className={styles.dek}>{view==="turnout"?"Live turnout across Florida counties as official county reporting feeds come online.":"Vote-by-Mail and Early Voting activity for the November 3 General Election, including ballots provided, returned and outstanding, plus early votes cast."}</p>
-      <div className={styles.status}><span>Election 49894</span><b>•</b><span>Election Day: Nov. 3</span><b>•</b>{view==="turnout"?<><span>County feeds checked: {turnoutCheckedAt?formatTime(turnoutCheckedAt):"loading…"}</span><b>•</b><span>{initialLiveLoading?"Loading live county reports…":`${refreshedLiveCount}/67 county feeds retrieved • ${staleLiveCount} stale • ${stateFallback.length} state fallbacks`}</span></>:<span>State compilation: {data?.compiled||"loading…"} ET</span>}<button onClick={refresh} disabled={loading||turnoutLoading}>{loading||turnoutLoading?"Refreshing…":"Refresh now"}</button></div>
-    </header>
-
-    <section className={styles.deadlines} aria-label="2026 general election deadlines">
-      <article><span>SEP 19</span><b>UOCAVA mail deadline</b><small>Military & overseas voters</small></article>
-      <article><span>SEP 24–OCT 1</span><b>Domestic VBM mailing window</b><small>Requests already on file</small></article>
-      <article><span>OCT 5</span><b>Registration deadline</b><small>Florida general election</small></article>
-      <article><span>OCT 22</span><b>VBM request deadline</b><small>5:00 PM</small></article>
-      <article><span>OCT 24–31</span><b>Mandatory early voting</b><small>Some counties begin Oct. 19</small></article>
-      <article><span>NOV 3</span><b>Election Day</b><small>VBM due by 7:00 PM</small></article>
+    setStateError(body.savedSnapshot?body.reportingNote||"State source unavailable; dated saved snapshot retained.":"");
+   }catch(e){if(id===request.current)setStateError(`${e instanceof Error?e.message:"State report unavailable"} The last verified state snapshot is retained, not relabeled as current.`);}
+  })();
+  const countyTask=(async()=>{
+   const results=await Promise.allSettled(Array.from({length:5},async(_,batch)=>{
+    const response=await fetch(`/api/general-turnout?batch=${batch}&t=${stamp}`,{cache:"no-store",signal:AbortSignal.timeout(22000)});
+    if(!response.ok)throw new Error(`County batch ${batch+1}: HTTP ${response.status}`);
+    const payload=await response.json() as TurnoutPayload;
+    if(!Array.isArray(payload.counties)||!isCurrentGeneral(payload.electionName,payload.electionDate))throw new Error(`County batch ${batch+1}: election or schema mismatch`);
+    return payload.counties;
+   }));
+   if(id!==request.current)return;
+   const incoming=results.flatMap(r=>r.status==="fulfilled"?r.value:[]),failures=results.filter(r=>r.status==="rejected").length;
+   setTurnoutData(previous=>mergeCountyRows(previous,incoming,Date.now()));
+   setTurnoutError(failures?`${failures} of 5 county batches could not be retrieved. Retained reports and newer dated state fallbacks are reconciled below.`:"");
+  })();
+  await Promise.allSettled([stateTask,countyTask]);
+  if(id===request.current){const finished=Date.now();setNow(finished);setCheckedAt(new Date(finished).toISOString());setLoading(false);}
+  busy.current=false;
+ }
+ useEffect(()=>{void refresh();const timer=setInterval(()=>{setNow(Date.now());void refresh();},60000);return()=>{clearInterval(timer);request.current++;busy.current=false;};},[]);
+ const selected=useMemo(()=>reconcileTurnout(turnoutData,data,now||Date.now()),[turnoutData,data,now]);
+ const ready=!!checkedAt&&selected.reconciled;
+ const current=selected.combined,mail=selected.totals.mail;
+ const rawRejected=turnoutData.filter(r=>r.status==="unavailable").length;
+ const displayed=useMemo(()=>selected.rows.filter(r=>`${r.name} ${r.code}`.toLowerCase().includes(query.toLowerCase())).sort((a,b)=>{
+  const value=(r:typeof a)=>sort==="name"?r.name:sort==="margin"?r.parties.dem-r.parties.rep:sort==="dem"||sort==="rep"?r.parties[sort]:sort==="ballots"?r.ballots:r.methods[sort]?.total??-1;
+  const av=value(a),bv=value(b);return (typeof av==="string"?av.localeCompare(String(bv)):Number(av)-Number(bv))*(ascending?1:-1);
+ }),[selected,query,sort,ascending]);
+ const empty:StateSplit={...zeroParties(),total:0},provided=data?.totals.provided||empty,voted=data?.totals.voted||empty,early=data?.totals.early||empty;
+ const requested=sumParties(provided,voted),sentTotal=provided.total+voted.total;
+ const stateCast=sumParties(voted,early);
+ const conversionMatched=!!data&&data.counties.every(c=>!!c.voted.compiled&&c.voted.compiled===c.provided.compiled);
+ const choose=(key:SortKey)=>{if(sort===key)setAscending(!ascending);else{setSort(key);setAscending(key==="name");}};
+ const Sort=({k,children}:{k:SortKey;children:React.ReactNode})=><button className={styles.sort} onClick={()=>choose(k)}>{children}{sort===k?(ascending?" ↑":" ↓"):""}</button>;
+ const freshCount=turnoutData.filter(r=>countyFreshness(r,now||Date.now())==="recent").length;
+ return <main className={styles.page} data-reconciliation-version={RECONCILIATION_VERSION}>
+  <header className={styles.hero}>
+   <div className={styles.brand}><img src="/vanessa-brito.jpg" alt="Dr. Vanessa Brito, 305 Data Girl"/><div><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span></div></div>
+   <div className={styles.eyebrow}><i/> OFFICIAL FLORIDA ELECTION DATA</div><h1>Florida General Election 2026</h1>
+   <p className={styles.dek}>Latest verified county turnout, with dated state fallbacks identified by voting method.</p>
+   <div className={styles.status}><span>Election 49894</span><b>•</b><span>Election Day: Nov. 3</span><b>•</b><span>Checked: {time(checkedAt)}</span><button onClick={()=>void refresh()} disabled={loading}>{loading?"Refreshing…":"Refresh now"}</button></div>
+  </header>
+  <section className={styles.deadlines} aria-label="2026 general election deadlines">
+   <article><span>SEP 19</span><b>UOCAVA mail deadline</b><small>Military &amp; overseas voters</small></article><article><span>SEP 24–OCT 1</span><b>Domestic VBM mailing window</b><small>Requests already on file</small></article><article><span>OCT 5</span><b>Registration deadline</b><small>Florida general election</small></article><article><span>OCT 22</span><b>VBM request deadline</b><small>5:00 PM</small></article><article><span>OCT 24–31</span><b>Mandatory early voting</b><small>Some counties begin Oct. 19</small></article><article><span>NOV 3</span><b>Election Day</b><small>VBM due by 7:00 PM</small></article>
+  </section>
+  <nav className={styles.tabs} aria-label="General Election data views"><button className={view==="turnout"?styles.activeTab:""} aria-pressed={view==="turnout"} onClick={()=>setView("turnout")}>Live County Turnout</button><button className={view==="state"?styles.activeTab:""} aria-pressed={view==="state"} onClick={()=>setView("state")}>State VBM + Early Voting</button></nav>
+  <section className={styles.content}>
+   {stateError&&<div className={styles.error}><b>State-source limitation:</b> {stateError}</div>}
+   {turnoutError&&view==="turnout"&&<div className={styles.error}><b>County-source limitation:</b> {turnoutError}</div>}
+   {view==="turnout"?<>
+    <div className={styles.phase}><span>{ready&&selected.coverage.allCountyRecent?"RECENT COUNTY REPORTS":"MIXED-TIMESTAMP REPORTED TURNOUT"}</span><strong>Latest verified selection — not a synchronized statewide count</strong>
+     <p>{!ready?"Loading and reconciling all five county batches. Missing or loading reports are not zeroes.":`${selected.coverage.included}/67 counties included • ${selected.coverage.recent} counties with recent reports for every active method • ${selected.coverage.delayed} with delayed, retained or undated county methods • ${selected.coverage.fallback} using at least one dated state fallback • ${selected.coverage.partial} partial • ${selected.coverage.unavailable} unavailable. Coverage categories can overlap.`}</p>
+     <p>One selected report per county and method. Recent means the source timestamp is no more than {FRESHNESS_MINUTES} minutes old; a successful fetch does not establish freshness or complete activity. State filing times are not live voting times. All methods and parties must reconcile. Provisional ballots are excluded. Party registration is not candidate preference.</p>
+     {ready&&<p>{freshCount} county feeds have recent source timestamps; {rawRejected} report unavailable at the last successful batch retrieval. State benchmark: {data?.compiled||"unavailable"} ET. The dated benchmark is kept separate from live counts and conversion denominators.</p>}
+    </div>
+    <div className={styles.cards}>
+     <article><label>Ballots cast — included reports</label><strong>{ready&&selected.coverage.included?n(current.total):"—"}</strong><small>{ready?`${selected.coverage.included}/67 counties; mixed method coverage`:"Verifying reports"}</small><Breakdown values={current} pending={!ready||!selected.coverage.included}/><small>D–R margin in included reports: {ready&&selected.coverage.included?margin(current):"—"}</small></article>
+     {METHODS.map(m=>{const t=selected.totals[m],notBegun=m==="electionDay"&&selected.beforeElectionDay,pending=!ready||!t.reportedCounties;return <article key={m}><label>{labels[m]}</label><strong>{notBegun?"Not begun":pending?"—":n(t.total)}</strong><small>{notBegun?"Scheduled for November 3, 2026; not a feed-derived zero":`${t.reportedCounties}/67 counties reported • ${t.recentCounties} recent • ${t.fallbackCounties} state fallbacks • ${t.missingCounties} unreported`}</small>{!notBegun&&<><Breakdown values={t} pending={pending}/><small>D–R margin: {pending?"—":margin(t)}</small></>}</article>;})}
+    </div>
+    {ready&&selected.coverage.included>0&&conversionMatched&&data&&<RegistrationComparison cast={current} liveReturns={mail} returns={voted} requested={requested} compiled={data.compiled}><p className={styles.registrationNote}>This panel uses the reconciled method selection above. These are reported-participation rates against the labeled registration baseline, not a certification of complete current turnout. Delayed state VBM conversion is separate and never uses live mail returns.</p></RegistrationComparison>}
+    {!conversionMatched&&<p className={styles.registrationNote}>VBM conversion is withheld because a matched returned/outstanding state snapshot has not been verified.</p>}
+    <section className={styles.tableCard}>
+     <div className={styles.tableHead}><div><h2>Selected county reports and source dates</h2><p>These rows sum to the cards above. Each method identifies the actual selected source. Missing is not zero; a state fallback may supersede an older retained county report.</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search county reports"/></div>
+     <div className={styles.tableWrap}><table><thead><tr><th><Sort k="name">County</Sort></th><th><Sort k="ballots">Included ballots</Sort></th>{METHODS.map(m=><th key={m}><Sort k={m}>{labels[m]}</Sort></th>)}<th><Sort k="dem">DEM</Sort></th><th><Sort k="rep">REP</Sort></th><th>NPA</th><th>Other</th><th><Sort k="margin">D–R</Sort></th></tr></thead><tbody>{ready&&displayed.map(r=><tr key={r.code}><td><b>{r.name}</b><small>{r.code}{r.missing.length?" • PARTIAL":""}</small>{r.warnings.map((w,i)=><small key={i}>{w}</small>)}</td><td>{METHODS.some(m=>r.methods[m])?n(r.ballots):"Not reported"}</td>{METHODS.map(m=><td key={m}>{m==="electionDay"&&selected.beforeElectionDay?"Not begun":<Provenance report={r.methods[m]}/>}</td>)}{PARTIES.map(p=><td key={p} style={{color:colors[p]}}>{METHODS.some(m=>r.methods[m])?n(r.parties[p]):"—"}</td>)}<td>{METHODS.some(m=>r.methods[m])?margin(r.parties):"—"}</td></tr>)}</tbody></table></div>
+     <p className={styles.registrationNote}>Reconciliation: {ready?`${n(current.total)} = ${n(selected.totals.mail.total)} mail + ${n(selected.totals.early.total)} early + ${n(selected.totals.electionDay.total)} Election Day included reports; ${n(selected.unallocated)} unallocated party ballots.`:"pending"} A method with no report remains unreported even when it contributes no number to this sum. Selection version {RECONCILIATION_VERSION}.</p>
+     <details><summary>Download this selected snapshot and provenance</summary><p>The export preserves reporting periods, selected sources, coverage, and the check time.</p><button disabled={!ready} onClick={()=>{const blob=new Blob([JSON.stringify(selected,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`305-data-girl-49894-${checkedAt?.replace(/[:.]/g,"-")}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export verified selection (JSON)</button></details>
     </section>
-
-    <nav className={styles.tabs} aria-label="General Election data views">
-      <button className={view==="turnout"?styles.activeTab:""} onClick={()=>setView("turnout")} aria-pressed={view==="turnout"}>Live County Turnout</button>
-      <button className={view==="state"?styles.activeTab:""} onClick={()=>setView("state")} aria-pressed={view==="state"}>State VBM + Early Voting</button>
-    </nav>
-
-    <section className={styles.content}>
-      {view==="state"&&data&&<ReportingNotice compiled={data.compiled} counties={data.counties} reportingNote={data.reportingNote}/>}
-      {view==="turnout"?<>
-        {turnoutError&&<div className={styles.error}><b>County turnout feed issue:</b> {turnoutError}<button onClick={refreshTurnout}>Try again</button></div>}
-        <div className={styles.phase}><span>LIVE VBM + EARLY VOTING + ELECTION DAY</span><strong>Latest reported turnout</strong><p>{initialLiveLoading?"Loading county reports. Live totals have not yet been verified in this view; a loading state does not mean early voting has not begun.":`${refreshedLiveCount} county feeds retrieved, ${staleLiveCount} retained after a failed or older refresh, and ${stateFallback.length} counties using the delayed state report. Latest county source timestamp: ${formatTime(latestCountyUpdate)}. Fallback compilation: ${data?.compiled||"unavailable"} ET.`}</p><p>Ballots cast = VBM returned + early voting + Election Day. Each county is counted once. Missing or delayed reporting is not evidence of zero voting.{mailOnlyCount>0?` ${mailOnlyCount} live source is VBM-only; its early-vote counts use the labeled state fallback, and live Election Day coverage is unavailable.`:""}</p></div>
-        <RegistrationComparison cast={currentTotals} liveReturns={currentMailReturns} returns={voted} requested={{rep:repSent,dem:demSent,npa:npaSent,other:otherSent}} compiled={data?.compiled||"loading…"}>
-        <div className={styles.cards}>
-          <article><label>Ballots cast</label><strong>{initialLiveLoading?"—":number.format(currentTotals.ballots)}</strong><small>{initialLiveLoading?"Live reports loading":`Reported totals across ${currentReportingCount} included counties`}</small><CardPartyBreakdown values={currentTotals} label="Ballots cast" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentTotals)}</small></article>
-          <article><label>Vote by mail</label><strong>{initialLiveLoading?"—":number.format(currentTotals.mail)}</strong><small>{!initialLiveLoading&&currentTotals.ballots?pct(currentTotals.mail/currentTotals.ballots*100):"—"} of ballots cast</small><CardPartyBreakdown values={currentMailReturns} label="Vote by mail" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentMailReturns)}</small></article>
-          <article><label>Early voting</label><strong>{initialLiveLoading?"—":number.format(currentTotals.early)}</strong><small>{initialLiveLoading?"Live reports loading":`${currentTotals.ballots?pct(currentTotals.early/currentTotals.ballots*100):"—"} of reported ballots • ${inPersonFeedCount}/67 current in-person feeds`}</small>{inPersonUnreported&&<small>Partial live coverage; delayed state figures included.</small>}<CardPartyBreakdown values={currentEarlyReturns} label="Early voting" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentEarlyReturns)}</small></article>
-          <article><label>Election Day</label><strong>{initialLiveLoading?"—":number.format(turnoutTotals.electionDay)}</strong><small>Reported activity only; unavailable feeds are not verified zeroes.</small><CardPartyBreakdown values={currentElectionDayReturns} label="Election Day" pending={initialLiveLoading}/><small>D–R margin: {initialLiveLoading?"—":rawMargin(currentElectionDayReturns)}</small></article>
-        </div>
-        </RegistrationComparison>
-        <section className={styles.tableCard}>
-          <div className={styles.tableHead}><div><h2>Live county turnout feeds</h2><p>County source timestamps are separate from the last check time. Stale rows retain the last verified report. A VBM-only source cannot establish an early-voting or Election Day count; those cells remain unreported here.</p></div><input value={turnoutQuery} onChange={e=>setTurnoutQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search live turnout counties"/></div>
-          <div className={styles.tableWrap}><table><thead><tr><th><TurnoutSortButton k="name">County</TurnoutSortButton></th><th><TurnoutSortButton k="ballots">Ballots cast</TurnoutSortButton></th><th><TurnoutSortButton k="turnout">Turnout</TurnoutSortButton></th><th><TurnoutSortButton k="mail">VBM</TurnoutSortButton></th><th><TurnoutSortButton k="early">Early vote</TurnoutSortButton></th><th><TurnoutSortButton k="electionDay">Election Day</TurnoutSortButton></th><th><TurnoutSortButton k="rep">REP</TurnoutSortButton></th><th><TurnoutSortButton k="dem">DEM</TurnoutSortButton></th><th>NPA</th><th><TurnoutSortButton k="margin">D–R margin</TurnoutSortButton></th><th><TurnoutSortButton k="updated">Last county update</TurnoutSortButton></th></tr></thead><tbody>{turnoutRows.map(c=><tr key={c.code}><td><a href={turnoutReportUrl(c)} target="_blank" rel="noreferrer"><b>{c.name}</b><span>{c.code} • {turnoutSourceLabel(c)}{c.stale?" • STALE — last verified":""}{vbmOnlySource(c)?" • VBM only":""} ↗</span></a></td>{c.status==="live"?<><td><b>{number.format(c.ballots)}</b></td><td><b>{c.registered>0?pct(c.turnout):"—"}</b></td><td>{number.format(c.mail)}</td><td>{vbmOnlySource(c)?"Not reported":number.format(c.early)}</td><td>{vbmOnlySource(c)?"Not reported":number.format(c.electionDay)}</td><td className={styles.rep}>{number.format(c.rep)}</td><td className={styles.dem}>{number.format(c.dem)}</td><td>{number.format(c.npa)}</td><td className={c.dem>=c.rep?styles.dem:styles.rep}>{c.dem>=c.rep?"D":"R"} +{number.format(Math.abs(c.dem-c.rep))}</td><td>{formatTime(c.updated)}</td></>:<td colSpan={10}>Live report unavailable or not verified — open county report ↗</td>}</tr>)}</tbody></table></div>
-        </section>
-      </>:<>
-        {error&&<div className={styles.error}><b>Ballot activity feed issue:</b> {error}<button onClick={refreshBallotActivity}>Try again</button></div>}
-        <div className={styles.phase}><span>STATE VBM + EARLY VOTING</span><strong>Ballot pipeline</strong><p>County-reported data compiled by the Florida Division of Elections: Vote-by-Mail ballots provided, outstanding and returned, plus early votes cast as counties begin reporting.</p></div>
-        <RegistrationComparison cast={stateCast} returns={voted} requested={{rep:repSent,dem:demSent,npa:npaSent,other:otherSent}} compiled={data?.compiled||"loading…"}>
-        <div className={styles.cards}>
-          <article><label>VBM sent / provided</label><strong>{number.format(sentTotal)}</strong><small>Outstanding + returned</small></article>
-          <article><label>Outstanding VBM</label><strong>{number.format(provided.total)}</strong><small>Provided, not yet returned</small></article>
-          <article><label>Returned VBM</label><strong>{number.format(votedTotal)}</strong><small>{pct(returnPct)} return rate</small></article>
-          <article><label>State early votes</label><strong>{number.format(early.total)}</strong><small>Prior-day activity; not an intraday early-vote total</small></article>
-        </div>
-        </RegistrationComparison>
-        <section className={styles.tableCard}>
-          <div className={styles.tableHead}><div><h2>State VBM + early voting by county</h2><p>County-submitted activity compiled by the Florida Division of Elections: VBM provided, outstanding and returned; return rate; and early votes cast.</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search ballot activity counties"/></div>
-          <div className={styles.tableWrap}><table><thead><tr><th><SortButton k="name">County</SortButton></th><th><SortButton k="sent">VBM sent</SortButton></th><th><SortButton k="outstanding">Outstanding</SortButton></th><th><SortButton k="returned">Returned</SortButton></th><th><SortButton k="rate">Return rate</SortButton></th><th>Daily returns</th><th><SortButton k="early">Early votes</SortButton></th><th>REP sent</th><th>DEM sent</th><th>NPA sent</th><th><SortButton k="margin">D–R gap</SortButton></th><th>Early voting</th><th>Last report</th></tr></thead><tbody>{rows.map(c=>{const cSent=sent(c.provided,c.voted),cRep=partySent(c.provided,c.voted,"rep"),cDem=partySent(c.provided,c.voted,"dem"),cNpa=partySent(c.provided,c.voted,"npa"),cMargin=cDem-cRep;return <tr key={c.code}><td><a href={officialStats} target="_blank" rel="noreferrer"><b>{c.name}</b><span>{c.code} ↗</span></a></td><td><b>{number.format(cSent)}</b></td><td>{number.format(c.provided.total)}</td><td>{number.format(c.voted.total)}</td><td>{cSent?pct(c.voted.total/cSent*100):"—"}</td><td>{c.changeReturned===undefined?"—":number.format(c.changeReturned)}</td><td>{number.format(c.early.total)}</td><td className={styles.rep}>{number.format(cRep)}</td><td className={styles.dem}>{number.format(cDem)}</td><td>{number.format(cNpa)}</td><td className={cMargin>=0?styles.dem:styles.rep}>{cSent?`${cMargin>=0?"D":"R"} +${number.format(Math.abs(cMargin))}`:"—"}</td><td>{c.earlyVoting||"—"}</td><td>{c.provided.compiled||c.voted.compiled||c.early.compiled||"—"}</td></tr>})}</tbody></table></div>
-        </section>
-      </>}
-
-      <section className={styles.actions}><div><h2>Official voter resources</h2><p>{view==="turnout"?"Live turnout comes from official county reporting: Turnout Quick View for most counties and Broward's ElectionLink reporting for Broward.":"These VBM and early-voting figures are submitted by county election officials and compiled by the Florida Division of Elections."}</p></div><div><a href={electionDates} target="_blank" rel="noreferrer">Election dates ↗</a><a href={vbmInfo} target="_blank" rel="noreferrer">Vote-by-Mail rules ↗</a><a href={soeDirectory} target="_blank" rel="noreferrer">Find your county SOE ↗</a><a href={officialStats} target="_blank" rel="noreferrer">Florida source data ↗</a></div></section>
-    </section>
-
-    <EarlyVotingLocations />
-    <footer className={styles.footer}>
-      <div className={styles.footerBrand}><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span><span>Dr. Vanessa Brito</span></div>
-      <div className={styles.footerContact}>
-        <a href="mailto:politicalgrl0318@gmail.com">politicalgrl0318@gmail.com</a>
-        <a href="https://www.instagram.com/vanessabritomiami" target="_blank" rel="noreferrer">Instagram @vanessabritomiami</a>
-        <a href="https://www.threads.net/@vanessabritomiami" target="_blank" rel="noreferrer">Threads @vanessabritomiami</a>
-        <a href="https://x.com/vanessabritomia" target="_blank" rel="noreferrer">X @vanessabritomia</a>
-        <a href="https://www.facebook.com/share/1DA4uCufrb/?mibextid=wwXIfr" target="_blank" rel="noreferrer">Facebook Vanessa Brito</a>
-        <a href="https://substack.com/@vanessabritomiami?r=5exhf8&utm_medium=ios&utm_source=stories&shareImageVariant=image" target="_blank" rel="noreferrer">Substack @vanessabritomiami</a>
-      </div>
-      <p>Sources: Florida Division of Elections Vote-by-Mail Request & Early Voting Statistics, Election 49894; Florida county Turnout Quick View reports; Broward County official ElectionLink reporting. Figures update as county election offices publish new data. Dashboard checks for updates every minute; county publication times vary. Delayed state figures and stale last-verified reports remain explicitly labeled.</p>
-    </footer>
-  </main>
+   </>:<>
+    {data&&<ReportingNotice compiled={data.compiled} counties={data.counties} reportingNote={data.reportingNote}/>}
+    <div className={styles.phase}><span>DELAYED STATE BENCHMARK</span><strong>State VBM + early voting</strong><p>Election 49894; compilation {data?.compiled||"unavailable"} ET. State reports cover preceding-day activity, not live intraday turnout. Blank method dates remain unreported.</p></div>
+    <div className={styles.cards}><article><label>VBM sent / provided</label><strong>{data?n(sentTotal):"—"}</strong><small>Returned + outstanding, same state snapshot</small></article><article><label>Outstanding VBM</label><strong>{data?n(provided.total):"—"}</strong></article><article><label>Returned VBM</label><strong>{data?n(voted.total):"—"}</strong><small>{conversionMatched&&sentTotal?pct(voted.total/sentTotal*100):"Conversion unverified"}</small></article><article><label>State early votes</label><strong>{data?n(early.total):"—"}</strong><small>Delayed state benchmark</small></article></div>
+    {data&&conversionMatched&&<RegistrationComparison cast={stateCast} returns={voted} requested={requested} compiled={data.compiled}><p className={styles.registrationNote}>State-only benchmark. This table is not substituted for current county turnout.</p></RegistrationComparison>}
+    <section className={styles.tableCard}><div className={styles.tableHead}><h2>State VBM + early voting by county</h2><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search county or code…" aria-label="Search state counties"/></div><div className={styles.tableWrap}><table><thead><tr><th>County</th><th>VBM sent</th><th>Outstanding</th><th>Returned</th><th>Return rate</th><th>Daily returns</th><th>Early voting</th><th>REP sent</th><th>DEM sent</th><th>NPA sent</th><th>Mail report filed (ET)</th><th>Early report filed (ET)</th><th>Early-voting schedule</th></tr></thead><tbody>{data?.counties.filter(c=>`${c.name} ${c.code}`.toLowerCase().includes(query.toLowerCase())).map(c=>{const sent=c.provided.total+c.voted.total,matched=!!c.voted.compiled&&c.voted.compiled===c.provided.compiled;return <tr key={c.code}><td><a href={officialStats} target="_blank" rel="noreferrer">{c.name} ↗</a></td><td>{n(sent)}</td><td>{c.provided.compiled?n(c.provided.total):"Unreported"}</td><td>{c.voted.compiled?n(c.voted.total):"Unreported"}</td><td>{matched&&sent?pct(c.voted.total/sent*100):"—"}</td><td>{c.changeReturned===undefined?"—":n(c.changeReturned)}</td><td>{c.early.compiled?n(c.early.total):"Unreported"}</td><td>{n(c.provided.rep+c.voted.rep)}</td><td>{n(c.provided.dem+c.voted.dem)}</td><td>{n(c.provided.npa+c.voted.npa)}</td><td>{c.voted.compiled||"Unreported"}</td><td>{c.early.compiled||"Unreported"}</td><td>{c.earlyVoting||"—"}</td></tr>;})}</tbody></table></div></section>
+   </>}
+   <section className={styles.actions}><div><h2>Official voter resources</h2><p>Official county TQV/ElectionLink reports and the separately labeled Florida state compilation. Missing live methods cannot be made current by refreshing an older report.</p></div><div><a href="https://dos.fl.gov/elections/for-voters/election-dates" target="_blank" rel="noreferrer">Election dates ↗</a><a href="https://dos.fl.gov/elections/for-voters/voting/vote-by-mail" target="_blank" rel="noreferrer">Vote-by-Mail rules ↗</a><a href="https://dos.elections.myflorida.com/supervisors/" target="_blank" rel="noreferrer">Find your county SOE ↗</a><a href={officialStats} target="_blank" rel="noreferrer">Florida source data ↗</a></div></section>
+  </section>
+  <EarlyVotingLocations/>
+  <footer className={styles.footer}><div className={styles.footerBrand}><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span><span>Dr. Vanessa Brito</span></div><div className={styles.footerContact}><a href="mailto:politicalgrl0318@gmail.com">politicalgrl0318@gmail.com</a><a href="https://www.instagram.com/vanessabritomiami" target="_blank" rel="noreferrer">Instagram @vanessabritomiami</a><a href="https://www.threads.net/@vanessabritomiami" target="_blank" rel="noreferrer">Threads @vanessabritomiami</a><a href="https://x.com/vanessabritomia" target="_blank" rel="noreferrer">X @vanessabritomia</a><a href="https://www.facebook.com/share/1DA4uCufrb/?mibextid=wwXIfr" target="_blank" rel="noreferrer">Facebook Vanessa Brito</a><a href="https://substack.com/@vanessabritomiami" target="_blank" rel="noreferrer">Substack @vanessabritomiami</a></div><p>Sources: Florida Division of Elections Election 49894; official county TQV; Broward ElectionLink. All five county batches are checked every minute. Publication times vary. Freshness is based on source timestamps, not the browser refresh. Mixed coverage, unavailable methods, retained reports and state fallbacks are labeled. Party registration is not candidate choice.</p></footer>
+ </main>;
 }
