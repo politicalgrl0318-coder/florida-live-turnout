@@ -1,0 +1,109 @@
+name: Read official live turnout sources
+on:
+  push:
+    branches: [audit/live-tqv-sources-20261024]
+    paths: [.github/workflows/live-tqv-source-audit.yml]
+permissions:
+  contents: read
+jobs:
+  source-read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read official public county sources
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, re, time, pathlib, datetime, concurrent.futures, urllib.request
+          from html.parser import HTMLParser
+          root=pathlib.Path('verification/direct-official'); root.mkdir(parents=True,exist_ok=True)
+          now=lambda:datetime.datetime.now(datetime.timezone.utc).isoformat()
+          started=now(); stamp=int(time.time()*1000)
+          codes='ALA BAK BAY BRA BRE BRO CAL CHA CIT CLA CLL CLM DAD DES DIX DUV ESC FLA FRA GAD GIL GLA GUL HAM HAR HEN HER HIG HIL HOL IND JAC JEF LAF LAK LEE LEO LEV LIB MAD MAN MRN MRT MON NAS OKA OKE ORA OSC PAL PAS PIN POL PUT STJ STL SAN SAR SEM SUM SUW TAY UNI VOL WAK WAL WAS'.split()
+          base='https://s3.us-east-1.amazonaws.com/turnoutquickview.electionsfl.org/data/FL'
+          def read(url):
+              req=urllib.request.Request(url,headers={'User-Agent':'305DataGirl-SourceVerification/1.0','Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req,timeout=15) as r:
+                  return r.read().decode('utf-8-sig'),dict(r.headers)
+          def county(code):
+              try:
+                  index_url=f'{base}/{code}/index.json?t={stamp}'
+                  index=json.loads(read(index_url)[0])
+                  if not isinstance(index,list): raise ValueError('Election index is not a list')
+                  for election in sorted(index,key=lambda x:int(x),reverse=True)[:30]:
+                      url=f'{base}/{code}/{election}/data.json?t={stamp}'
+                      try: text,headers=read(url); data=json.loads(text)
+                      except Exception: continue
+                      summary=data.get('Summary',{})
+                      if 'general' not in str(summary.get('ElectionName','')).lower() or not re.search(r'(11[/-]0?3[/-]2026|2026-11-03)',str(summary.get('ElectionDate',''))):continue
+                      p=data.get('Turnout',{}).get('PartyType',{})
+                      days=data.get('Turnout',{}).get('DateType',{})
+                      if not isinstance(p,dict) or not isinstance(days,dict):raise ValueError('Missing party or date totals')
+                      methods={}
+                      for method in ['Mail','EarlyVoting','ElectionDay']:
+                          counts={key.lower():int(p.get(key,{}).get(method,0)) for key in ['DEM','REP','NPA']}
+                          all_party=sum(int(v.get(method,0)) for v in p.values())
+                          counts['other']=all_party-sum(counts.values())
+                          by_date=sum(int(v.get(method,0)) for v in days.values())
+                          methods[method]={**counts,'total':by_date,'partyTotal':all_party,'reconciled':by_date==all_party and min(counts.values())>=0}
+                      evidence={'code':code,'sourceUrl':url,'fetchedAt':now(),'httpDate':headers.get('Date'),'summary':summary,'methods':methods,'PartyType':p,'DateType':days}
+                      (root/f'{code}.json').write_text(json.dumps(evidence,indent=2))
+                      return {k:v for k,v in evidence.items() if k not in ['PartyType','DateType']}
+                  raise ValueError('No matching 2026 General election in checked index entries')
+              except Exception as e:return {'code':code,'error':str(e),'fetchedAt':now()}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+              counties=list(pool.map(county,codes))
+          class Page(HTMLParser):
+              def __init__(self):super().__init__();self.text=[];self.scripts=[];self.script=None;self.attrs=[]
+              def handle_starttag(self,tag,attrs):
+                  d=dict(attrs)
+                  if tag=='script':self.script={'attrs':d,'text':''}
+                  for k,v in attrs:
+                      if any(x in k.lower() for x in ['asof','election','update']):self.attrs.append([k,v])
+              def handle_data(self,data):
+                  if self.script is not None:self.script['text']+=data
+                  elif data.strip():self.text.append(data.strip())
+              def handle_endtag(self,tag):
+                  if tag=='script' and self.script is not None:self.scripts.append(self.script);self.script=None
+          paths={
+            'broward-summary':'https://my.browardvotes.gov/TEDElectionLink/TurnOutWidget/dashboard/view/turnout-summary',
+            'broward-party':'https://my.browardvotes.gov/TEDElectionLink/TurnOutWidget/dashboard/view/turnout-party',
+            'broward-day':'https://my.browardvotes.gov/TEDElectionLink/TurnOutWidget/dashboard/view/turnout-day',
+            'broward-mail':'https://my.browardvotes.gov/TEDElectionLink/AbsenteeTurnOut/dashboard/view/absturnout-party'
+          }
+          def broward(item):
+              name,url=item
+              try:
+                  text,headers=read(url+'?verify='+str(stamp));(root/(name+'.html')).write_text(text)
+                  page=Page();page.feed(text)
+                  charts=[]
+                  for s in page.scripts:
+                      if 'ted-ec-initial' in s['attrs'].get('class',''):
+                          try:charts.append(json.loads(s['text']))
+                          except Exception:pass
+                  result={'name':name,'sourceUrl':url,'fetchedAt':now(),'httpDate':headers.get('Date'),'text':page.text,'metadata':page.attrs,'charts':charts}
+                  (root/(name+'.json')).write_text(json.dumps(result,indent=2))
+                  return result
+              except Exception as e:return {'name':name,'error':str(e)}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:broward_pages=list(pool.map(broward,paths.items()))
+          origin='https://florida-live-turnout.politicalgrl0318.workers.dev'
+          extra_urls={**{f'batch-{i}':origin+f'/api/general-turnout?batch={i}&t={stamp}' for i in range(5)},'state':origin+f'/api/general?t={stamp}','district-metadata':origin+'/data/general-districts.json'}
+          def extra(item):
+              name,url=item
+              try:
+                  text,headers=read(url);data=json.loads(text);(root/(name+'.json')).write_text(json.dumps(data,indent=2));return {'name':name,'ok':True,'fetchedAt':now()}
+              except Exception as e:return {'name':name,'error':str(e)}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=7) as pool:extras=list(pool.map(extra,extra_urls.items()))
+          report={'startedAt':started,'finishedAt':now(),'counties':counties,'broward':broward_pages,'extras':extras}
+          (root/'direct-summary.json').write_text(json.dumps(report,indent=2))
+          print(json.dumps({'startedAt':started,'finishedAt':report['finishedAt'],'tqvFetched':sum('methods' in c for c in counties),'tqvErrors':[c for c in counties if 'error' in c],'mismatched':[{'code':c['code'],'methods':c['methods']} for c in counties if 'methods' in c and not all(m['reconciled'] for m in c['methods'].values())],'broward':broward_pages,'extras':extras},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: direct-official-turnout
+          path: verification/direct-official
+          retention-days: 14
