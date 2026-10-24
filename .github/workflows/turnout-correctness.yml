@@ -39,6 +39,9 @@ jobs:
           node-version: '22'
       - name: Verify deployed version and all five county batches
         run: node --experimental-strip-types scripts/verify-live-turnout.mjs
+      - name: Verify published snapshot and visible production figures
+        if: always()
+        run: node scripts/verify-published-update.mjs
       - name: Preserve source snapshots and verification evidence
         if: always()
         uses: actions/upload-artifact@v4
