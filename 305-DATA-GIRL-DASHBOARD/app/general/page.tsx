@@ -6,6 +6,7 @@ import styles from "./general.module.css";
 import EarlyVotingLocations from "./early-voting-locations";
 import RegistrationComparison from "./registration-comparison";
 import ReportingNotice from "./reporting-notice";
+import VerifiedUpdate from "./verified-update";
 import snapshot from "../../public/data/general-official-snapshot.json";
 
 type CountyRow={code:string;name:string;sourceUrl:string;earlyVoting:string;provided:StateSplit;voted:StateSplit;early:StateSplit;changeReturned?:number};
@@ -110,6 +111,7 @@ export default function GeneralElection(){
   <details className={styles.tableCard} style={{marginTop:12,padding:12}}><summary style={{cursor:"pointer",fontWeight:700}}>Voting dates and deadlines (tap to expand)</summary><section className={styles.deadlines} aria-label="2026 general election deadlines">
    <article><span>SEP 19</span><b>UOCAVA mail deadline</b><small>Military &amp; overseas voters</small></article><article><span>SEP 24–OCT 1</span><b>Domestic VBM mailing window</b><small>Requests already on file</small></article><article><span>OCT 5</span><b>Registration deadline</b><small>Florida general election</small></article><article><span>OCT 22</span><b>VBM request deadline</b><small>5:00 PM</small></article><article><span>OCT 24–31</span><b>Mandatory early voting</b><small>Some counties begin Oct. 19</small></article><article><span>NOV 3</span><b>Election Day</b><small>VBM due by 7:00 PM</small></article>
   </section></details>
+  <VerifiedUpdate/>
   <nav className={styles.tabs} aria-label="General Election data views"><button className={view==="turnout"?styles.activeTab:""} aria-pressed={view==="turnout"} onClick={()=>setView("turnout")}>Live County Turnout</button><button className={view==="state"?styles.activeTab:""} aria-pressed={view==="state"} onClick={()=>setView("state")}>State VBM + Early Voting</button></nav>
   <section className={styles.content}>
    {stateError&&<div className={styles.error}><b>State-source limitation:</b> {stateError}</div>}
