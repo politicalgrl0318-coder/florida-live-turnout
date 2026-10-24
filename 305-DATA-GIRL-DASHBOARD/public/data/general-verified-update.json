@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "electionNumber": "49894",
+  "electionName": "2026 General Election",
+  "electionDate": "2026-11-03",
+  "checkedAt": "2026-10-24T22:17:17.259682Z",
+  "sourceTimestampRange": {"oldest": "2026-10-24T22:00:02.9901936Z", "newest": "2026-10-24T22:15:51Z"},
+  "classification": "Dated, verified county-method snapshot; not a new live retrieval",
+  "methods": {
+    "mail": {"total": 1376321, "dem": 589733, "rep": 493137, "npa": 260204, "other": 33246, "unallocated": 1},
+    "early": {"total": 1216731, "dem": 440932, "rep": 535969, "npa": 209745, "other": 30083, "unallocated": 2},
+    "electionDay": {"total": 0, "dem": 0, "rep": 0, "npa": 0, "other": 0, "unallocated": 0, "status": "Not begun; Election Day is November 3, 2026"}
+  },
+  "combined": {"total": 2593052, "dem": 1030665, "rep": 1029106, "npa": 469949, "other": 63329, "unallocated": 3},
+  "coverage": {
+    "countiesIncluded": 67,
+    "latestReconciledForBothMethods": 65,
+    "retainedCounties": ["DAD", "GLA"],
+    "stateFallbackCounties": 0,
+    "missingMethodsBeforeElectionDay": 0,
+    "unavailableCounties": 0,
+    "priorDayStaleCounties": 0,
+    "newerUnreconciledMethods": 1
+  },
+  "exceptions": [
+    "Miami-Dade early voting: retained the reconciled 6:00:02 p.m. EDT report because the newer report differed by two ballots between its date and party totals.",
+    "Glades: retained the earlier verified 6:10:01 p.m. EDT report because the newer source timestamp was ahead of the time it was retrieved.",
+    "Three ballots have unallocated party classifications: one VBM and two early votes. These are not assigned to Other."
+  ],
+  "comparison": {
+    "previousComparableCheckedAt": "2026-10-24T22:05:19.091Z",
+    "previousCombined": {"total": 2574204, "dem": 1020425, "rep": 1025013, "npa": 465859, "other": 62907, "unallocated": 0},
+    "reportedChange": {
+      "mail": {"total": 139, "dem": 89, "rep": 27, "npa": 22, "other": 0, "unallocated": 1},
+      "early": {"total": 18709, "dem": 10151, "rep": 4066, "npa": 4068, "other": 422, "unallocated": 2},
+      "electionDay": {"total": 0, "dem": 0, "rep": 0, "npa": 0, "other": 0, "unallocated": 0},
+      "combined": {"total": 18848, "dem": 10240, "rep": 4093, "npa": 4090, "other": 422, "unallocated": 3}
+    },
+    "browardEarlyFallbackReplacement": {"total": 18148, "dem": 9897, "rep": 3901, "npa": 3943, "other": 407, "unallocated": 0},
+    "remainingNetReportedChange": 700,
+    "note": "Broward's newer county early-vote report replaced a dated state fallback. The 18,148-ballot difference is restored source coverage, not ballots necessarily cast during the interval. The remaining 700 is a net reported change and may include revisions."
+  },
+  "sources": {
+    "countyTQV": "https://tqv.vrswebapps.com/?state=FL",
+    "broward": "https://my.browardvotes.gov/TEDElectionLink/",
+    "stateBenchmark": "https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats",
+    "evidenceArchive": "florida-official-live-count-20261024-1817.zip",
+    "calculationFile": "best-live-turnout-20261024-1817.json",
+    "method": "67 counties; official TQV for 66 counties and official Broward ElectionLink. One selected verified report per county and voting method. Broward mail and early reports have separate timestamps. No state fallback figures are included in this selected snapshot."
+  },
+  "policies": {
+    "provisional": "Excluded",
+    "party": "Registration, not candidate preference",
+    "conversion": "No live returns are divided by delayed outstanding-ballot counts",
+    "districts": "No district figures inferred from county totals; published district snapshots keep their own dates and coverage",
+    "refresh": "This published snapshot is fixed at its stated verification time. Automatic county-feed selections below are separate and can differ because of report dates, coverage or revisions. Do not add them together."
+  }
+}
