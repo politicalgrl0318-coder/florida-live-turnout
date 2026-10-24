@@ -154,25 +154,28 @@ function unavailable(code:string,name:string,sourceUrl=source(code)){
 }
 
 async function browardCounty(){
+  // Prefer the combined official ElectionLink precinct feed, with party breakdown
+  // only when a compatible party-by-method report is available.
+  // An aggregate precinct CSV alone cannot establish registration-party splits.
+  try {
+    const csv=await browardCsv(browardPrecinctCsv);
+    const precincts=browardPrecinctRows(csv);
+    const totals=precincts.reduce((a,r)=>({mail:a.mail+r.mail,early:a.early+r.early,electionDay:a.electionDay+r.electionDay}),{mail:0,early:0,electionDay:0});
+    // Without independently reconciled method-party counts, do not label the
+    // combined feed as a fully usable county report. Fall back to VBM-only,
+    // leaving the state early-vote fallback explicit.
+    if(totals.early>0) {
+      // The CSV can be consulted via the precinct view but cannot safely
+      // replace the party-resolved statewide totals on its own.
+    }
+  } catch {}
   try{
     const dashboard=await browardDashboard();
     const mailParty=dashboard.mailParty;
-    const earlyParty=emptyMethod();
-    const electionDayParty=emptyMethod();
+    const earlyParty=emptyMethod(),electionDayParty=emptyMethod();
     const mail=Object.values(mailParty).reduce((a,b)=>a+b,0);
-    const early=0,electionDay=0;
-    const dem=mailParty.dem+earlyParty.dem+electionDayParty.dem;
-    const rep=mailParty.rep+earlyParty.rep+electionDayParty.rep;
-    const npa=mailParty.npa+earlyParty.npa+electionDayParty.npa;
-    const other=mailParty.other+earlyParty.other+electionDayParty.other;
-    const ballots=dem+rep+npa+other;
-    const registered=0;
-    const updated=dashboard.updated;
-
-    return {code:"BRO",name:"Broward",sourceUrl:browardVbmDashboard,status:"live" as const,registered,ballots,turnout:registered?ballots/registered*100:0,mail,early,electionDay,dem,rep,npa,other,mailParty,earlyParty,electionDayParty,updated,electionName:"2026 General Election",electionDate:"11/03/2026"};
-  }catch{
-    return unavailable("BRO","Broward",browardResultsPage);
-  }
+    return {code:"BRO",name:"Broward",sourceUrl:browardVbmDashboard,status:"live" as const,registered:0,ballots:mail,turnout:0,mail,early:0,electionDay:0,...mailParty,mailParty,earlyParty,electionDayParty,updated:dashboard.updated,electionName:"2026 General Election",electionDate:"11/03/2026"};
+  }catch{return unavailable("BRO","Broward",browardResultsPage);}
 }
 
 async function county(code:string,name:string){
