@@ -198,8 +198,8 @@ export default function DistrictsPage(){
       <div className={styles.cards}>
         <article><span>VBM sent / provided</span><strong>{statewide?number.format(statewide.sent):"—"}</strong><small>{statewide?number.format(statewide.provided)+" still outstanding":"Statewide package"}</small></article>
         <article><span>VBM returned</span><strong>{statewide?number.format(statewide.returned):"—"}</strong><small>{statewide&&statewide.sent?pct(statewide.returned/statewide.sent*100):"—"} statewide return rate</small></article>
-        <article><span>Early in-person ballots</span><strong>{statewide?number.format(statewide.early):"—"}</strong><small>Separate October 23 EVL archive</small></article>
-        <article><span>Combined ballots cast</span><strong>{statewide?number.format(statewide.cast):"—"}</strong><small>VBM returned + early in person</small></article>
+        <article><span>Early in-person ballots</span><strong>{statewide?number.format(statewide.early):"—"}</strong><small>Separate October 25 EVL archive</small></article>
+        <article><span>Combined ballots cast</span><strong>{statewide?number.format(statewide.cast):"—"}</strong><small>Unique voters across mail and early</small></article>
       </div>
 
       <section className={styles.method}><h2>Snapshot and reporting status</h2><p>District data uses {data?.sourcePackage||"the voter-level package"}. Statewide/county live data on the Dashboard is separately timestamped. Daily district changes compare {data?.baselineDate||"the prior package"}.</p><p>{data?number.format(data.excludedCongressional.returned):"—"} returned ballots and {data?number.format(data.excludedCongressional.sent):"—"} P + V records have no valid congressional assignment and remain in statewide totals.</p><p>{data?.coverage.note} Zero or low reported returns can reflect processing and reporting timing. Party registration is not candidate choice; these figures are reported mail and early-voting activity, not a turnout forecast.</p></section>
