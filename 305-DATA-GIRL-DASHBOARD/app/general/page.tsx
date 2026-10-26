@@ -14,6 +14,8 @@ import snapshot from '../../public/data/general-official-snapshot.json';
 type CountyRow={code:string;name:string;sourceUrl:string;earlyVoting:string;provided:StateSplit;voted:StateSplit;early:StateSplit;changeReturned?:number};
 type Payload={generatedAt:string;compiled:string;electionName:string;electionNumber:string;electionDate:string;totals:{provided:StateSplit;voted:StateSplit;early:StateSplit;changeReturned?:number};counties:CountyRow[];savedSnapshot?:boolean;reportingNote?:string};
 type TurnoutPayload={generatedAt:string;electionNumber?:string;electionName:string;electionDate:string;counties:TurnoutRow[]};
+type CivicMethod={split:StateSplit;updatedLabel:string;sourceDate:string;sourceUrl:string};
+type CivicPayload={source:string;checkedAt:string;mail:CivicMethod;early:CivicMethod;combined:StateSplit;warning:string};
 const officialStats='https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats';
 const storageKey='305-49894-county-methods-v3';
 const labels={mail:'Vote by mail',early:'Early voting',electionDay:'Election Day'};
@@ -25,6 +27,7 @@ function validState(p:Payload){
 }
 export default function GeneralElection(){
  const [view,setView]=useState<'turnout'|'state'>('turnout');
+ const [civic,setCivic]=useState<CivicPayload|null>(null),[civicError,setCivicError]=useState('');
  const [data,setData]=useState<Payload|null>(validState(snapshot as Payload)?snapshot as Payload:null);
  const [turnoutData,setTurnoutData]=useState<TurnoutRow[]>(()=>countySeed());
  const [loading,setLoading]=useState(true),[stateError,setStateError]=useState(''),[turnoutError,setTurnoutError]=useState('');
@@ -32,6 +35,7 @@ export default function GeneralElection(){
  const [query,setQuery]=useState('');const request=useRef(0),busy=useRef(false);
  async function refresh(){
   if(busy.current)return;busy.current=true;const id=++request.current;setLoading(true);const stamp=Date.now();
+  const civicTask=(async()=>{try{const response=await fetch(`/api/civicapi-fl?t=${stamp}`,{cache:'no-store',signal:AbortSignal.timeout(14000)});if(!response.ok)throw Error(`civicAPI publication HTTP ${response.status}`);const body=await response.json() as CivicPayload;if(!body?.combined||body.combined.total!==body.mail.split.total+body.early.split.total||body.combined.total!==body.combined.dem+body.combined.rep+body.combined.npa+body.combined.other||body.combined.total<=0)throw Error('civicAPI totals failed reconciliation');if(id===request.current){setCivic(body);setCivicError('');}}catch(e){if(id===request.current){setCivic(null);setCivicError(e instanceof Error?e.message:'civicAPI data unavailable');}}})();
   const stateTask=(async()=>{try{
    const response=await fetch(`/api/general?t=${stamp}`,{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!response.ok)throw new Error(`State report HTTP ${response.status}`);
    const body=await response.json() as Payload;if(!validState(body))throw new Error('State report failed election or reconciliation checks.');if(id!==request.current)return;
@@ -44,7 +48,7 @@ export default function GeneralElection(){
    setTurnoutData(previous=>{const rows=mergeCountyRows(previous,incoming,Date.now());try{localStorage.setItem(storageKey,JSON.stringify(rows));}catch{}return rows;});
    setTurnoutError(failures?`${failures} of 5 batches could not be retrieved. Last verified methods retain their original dates; state fallbacks are labeled.`:'');
   })();
-  await Promise.allSettled([stateTask,countyTask]);if(id===request.current){const finished=Date.now();setNow(finished);setCheckedAt(new Date(finished).toISOString());setLoading(false);}busy.current=false;
+  await Promise.allSettled([stateTask,countyTask,civicTask]);if(id===request.current){const finished=Date.now();setNow(finished);setCheckedAt(new Date(finished).toISOString());setLoading(false);}busy.current=false;
  }
  useEffect(()=>{
   try{const saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(Array.isArray(saved)&&saved.length<=67)setTurnoutData(previous=>mergeCountyRows(previous,saved,Date.now()));}catch{}
@@ -60,8 +64,8 @@ export default function GeneralElection(){
  return <main className={styles.page} data-reconciliation-version={RECONCILIATION_VERSION} data-layout-version='mobile-v3' data-selection-ready={checkedAt&&ready?'true':'false'}>
   <header className={styles.hero}>
    <div className={styles.brand}><img src='/vanessa-brito.jpg' alt='Dr. Vanessa Brito, 305 Data Girl'/><div><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span></div></div>
-   <div className={styles.eyebrow}><i/> OFFICIAL FLORIDA ELECTION DATA</div><h1>Florida General Election 2026</h1>
-   <p className={styles.dek}>County turnout, with original source dates and clearly labeled fallbacks.</p>
+   <div className={styles.eyebrow}><i/> FLORIDA TURNOUT · CIVICAPI + OFFICIAL COUNTY REPORTS</div><h1>Florida General Election 2026</h1>
+   <p className={styles.dek}>civicAPI-derived statewide updates, with official county reports and a separately dated state benchmark.</p>
    <div className={styles.status}><span>Election 49894</span><b>•</b><span>Election Day: Nov. 3</span><b>•</b><span>Last check: {checkedAt?time(checkedAt):'Loading fresh sources'}</span><button onClick={()=>void refresh()} disabled={loading}>{loading?'Refreshing…':'Refresh now'}</button></div>
   </header>
   <details className={styles.tableCard} style={{marginTop:12,padding:12}}><summary style={{cursor:'pointer',fontWeight:700}}>Voting dates and deadlines</summary><section className={styles.deadlines} aria-label='2026 general election deadlines'>
@@ -72,14 +76,22 @@ export default function GeneralElection(){
    {stateError&&<div className={styles.error}><b>State-source limitation:</b> {stateError}</div>}
    {turnoutError&&view==='turnout'&&<div className={styles.error}><b>County-source limitation:</b> {turnoutError}</div>}
    {view==='turnout'?<>
+    <section className={styles.tableCard} style={{marginBottom:16,padding:16}} aria-label='civicAPI statewide turnout'>
+      <div style={{fontWeight:800,letterSpacing:'.04em',marginBottom:7}}>PRIMARY STATEWIDE TOTALS · civicAPI via 50501 Veterans</div>
+      {civic?<><p style={{fontSize:13,marginBottom:12}}>VBM source: {civic.mail.updatedLabel} · Early source: {civic.early.updatedLabel}. Independently reported county counts appear below.</p>
+        <StatewideMargin source='county' values={{...civic.combined,unallocated:0}} pending={false} coverage='Third-party statewide publication · not independent county reconciliation' sourceNote={civic.warning} methods={[{id:'mail',label:'Vote by mail',values:{...civic.mail.split,unallocated:0},pending:false},{id:'early',label:'Early voting',values:{...civic.early.split,unallocated:0},pending:false},{id:'electionDay',label:'Election Day',values:{...zeroParties(),total:0,unallocated:0},pending:false,notBegun:true}]}/>
+        <p style={{fontSize:12,marginTop:9}}>Source: <a href={civic.mail.sourceUrl} target='_blank' rel='noreferrer'>Mail return tracker ↗</a> · <a href={civic.early.sourceUrl} target='_blank' rel='noreferrer'>Early-voting tracker ↗</a> · <a href='https://civicapi.org' target='_blank' rel='noreferrer'>civicAPI ↗</a>. These are registered-party counts, not candidate preferences.</p>
+       </>:<p style={{fontSize:13}}>civicAPI publication unavailable or cannot be validated{civicError?`: ${civicError}`:''}. Official county-method counts remain available below and have not been relabeled as civicAPI.</p>}
+    </section>
     <div className={`${styles.phase} ${ui.liveStatus}`}>
      <span>{!checkedAt?'SAVED REPORTS WHILE SOURCES LOAD':selected.coverage.allCountyRecent?'RECENT COUNTY REPORTS':'MIXED-TIMESTAMP COUNTY REPORTS'}</span>
-     <strong>{checkedAt?'One reconciled statewide selection':'Saved verified baseline · October 24, 6:17 p.m. EDT'}</strong>
+     <strong>{checkedAt?'OFFICIAL COUNTY CROSS-CHECK — separate from civicAPI':'Saved official county baseline · October 24, 6:17 p.m. EDT'}</strong>
      <p>{selected.coverage.included}/67 counties included · {selected.coverage.recent} recent · {selected.coverage.delayed} retained / delayed · {selected.coverage.fallback} with state fallbacks · {selected.coverage.partial} partial · {selected.coverage.unavailable} unavailable.</p>
      {checkedAt&&<p>Newest county source: {time(selected.sourceTimestamps.newest)}. Checked: {time(checkedAt)}.</p>}
      <details><summary>What these counts include</summary><p>One verified report per county and voting method. The cards, county rows, and download use this same selection. Recent means a source timestamp within {FRESHNESS_MINUTES} minutes; retrieval alone does not establish freshness. Coverage categories overlap. Missing is not zero. Provisional ballots are excluded; unallocated party counts remain separate. Registration is not candidate choice.</p><p>The state compilation ({data?.compiled||'unavailable'} ET) is a separate delayed benchmark, used only as a method-specific fallback where it outranks an unavailable or older county report. Live returns are never divided by a delayed outstanding-mail denominator.</p></details>
     </div>
     <div style={{display:'flex',flexWrap:'wrap',gap:10,marginBottom:16,alignItems:'center',fontSize:13,lineHeight:1.5}}><a href='#county-reports' style={{fontWeight:700,textDecoration:'underline'}}>Find a county ↓</a><span>Checks every minute. Source dates—not the refresh—determine freshness.</span></div>
+    <h2 style={{margin:'12px 0'}}>Official county-method reconciliation (comparison)</h2>
     <StatewideMargin source='county' values={current} pending={!ready} coverage={`${selected.coverage.included}/67 counties included · ${selected.coverage.partial} partial · ${selected.coverage.unavailable} unavailable`} sourceNote={checkedAt?`Newest county source: ${time(selected.sourceTimestamps.newest)}. Mixed source dates and state fallbacks are detailed above.`:'Saved county reports while sources load · October 24, 6:17 p.m. EDT.'} methods={METHODS.map(method=>({id:method,label:labels[method],values:selected.totals[method],pending:!ready||!selected.totals[method].reportedCounties,notBegun:method==='electionDay'&&selected.beforeElectionDay}))}/>
     <div className={`${styles.cards} ${ui.summaryCards}`} data-live-summary>
      <article data-method='combined' data-total={ready?current.total:''}><label>Combined reported ballots</label><strong>{ready?n(current.total):'—'}</strong><small>{selected.coverage.included}/67 counties · see coverage above</small><PartyBreakdown values={current} total={current.total} unallocated={current.unallocated} pending={!ready}/><small>Registered-party margin: <b>{ready?margin(current):'—'}</b></small></article>
@@ -100,6 +112,6 @@ export default function GeneralElection(){
    <section className={styles.actions}><div><h2>Official voter resources</h2><p>Official county TQV/ElectionLink reports and the separately labeled state compilation.</p></div><div><a href='https://dos.fl.gov/elections/for-voters/election-dates' target='_blank' rel='noreferrer'>Election dates ↗</a><a href='https://dos.fl.gov/elections/for-voters/voting/vote-by-mail' target='_blank' rel='noreferrer'>Vote-by-mail rules ↗</a><a href='https://dos.elections.myflorida.com/supervisors/' target='_blank' rel='noreferrer'>Find your county SOE ↗</a><a href={officialStats} target='_blank' rel='noreferrer'>Florida source data ↗</a></div></section>
   </section>
   <EarlyVotingLocations/>
-  <footer className={styles.footer}><div className={styles.footerBrand}><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span><span>Dr. Vanessa Brito</span></div><div className={styles.footerContact}><a href='mailto:politicalgrl0318@gmail.com'>politicalgrl0318@gmail.com</a><a href='https://www.instagram.com/vanessabritomiami' target='_blank' rel='noreferrer'>Instagram @vanessabritomiami</a><a href='https://www.threads.net/@vanessabritomiami' target='_blank' rel='noreferrer'>Threads @vanessabritomiami</a><a href='https://x.com/vanessabritomia' target='_blank' rel='noreferrer'>X @vanessabritomia</a><a href='https://www.facebook.com/share/1DA4uCufrb/?mibextid=wwXIfr' target='_blank' rel='noreferrer'>Facebook Vanessa Brito</a><a href='https://substack.com/@vanessabritomiami' target='_blank' rel='noreferrer'>Substack @vanessabritomiami</a></div><p>Election 49894 · Official county TQV and Broward ElectionLink · State compilation kept separate. All five county batches are checked every minute. Source timestamps determine freshness. Party registration is not candidate choice.</p></footer>
+  <footer className={styles.footer}><div className={styles.footerBrand}><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span><span>Dr. Vanessa Brito</span></div><div className={styles.footerContact}><a href='mailto:politicalgrl0318@gmail.com'>politicalgrl0318@gmail.com</a><a href='https://www.instagram.com/vanessabritomiami' target='_blank' rel='noreferrer'>Instagram @vanessabritomiami</a><a href='https://www.threads.net/@vanessabritomiami' target='_blank' rel='noreferrer'>Threads @vanessabritomiami</a><a href='https://x.com/vanessabritomia' target='_blank' rel='noreferrer'>X @vanessabritomia</a><a href='https://www.facebook.com/share/1DA4uCufrb/?mibextid=wwXIfr' target='_blank' rel='noreferrer'>Facebook Vanessa Brito</a><a href='https://substack.com/@vanessabritomiami' target='_blank' rel='noreferrer'>Substack @vanessabritomiami</a></div><p>Election 49894 · Primary statewide totals: civicAPI via 50501 Veterans · Official county TQV and Broward ElectionLink independently reconciled · State compilation kept separate. All five county batches are checked every minute. Source timestamps determine freshness. Party registration is not candidate choice.</p></footer>
  </main>;
 }
