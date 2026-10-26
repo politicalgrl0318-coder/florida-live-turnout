@@ -16,7 +16,7 @@ function parse(html:string,kind:'returned'|'inperson'){
  const extract=(name:string)=>Number(partyBlock.match(new RegExp(name+'\\s+([\\d,]+)\\s*\\(' ,'i'))?.[1]?.replace(/,/g,''));
  const split:Split={dem:extract('Democratic'),rep:extract('Republican'),npa:extract('No Party Affiliation'),other:extract('Other'),total:Number(total?.replace(/,/g,'')),unallocated:0};
  if(!updated||!date||!total||Object.values(split).some(x=>!Number.isSafeInteger(x)||x<0)||split.dem+split.rep+split.npa+split.other!==split.total)throw Error('Tracker report does not reconcile');
- const checked=new Date(updated.replace(/\s+ET$/,'')+' EDT');
+ const checked=new Date(updated.replace(/\s+ET$/,'')+', 2026 EDT');
  // Date formatting is intentionally visible so failed parsing cannot appear current.
  if(!Number.isFinite(checked.getTime())||!/2026$/.test(date)||Math.abs(Date.now()-checked.getTime())>36*3600000)throw Error('Tracker publication is stale or undated');
  return {split,updatedLabel:updated,sourceDate:date,sourceUrl:origin+kind};
