@@ -1,7 +1,7 @@
 import {COUNTY_NAMES,FRESHNESS_MINUTES,METHODS,PARTIES,isCurrentGeneral,partySum,sourceStamp,validSplit,zeroParties,usableCounty as usableLegacy,type PartySplit,type StateSplit,type StateReport,type Method,type Stamp,type TurnoutRow as LegacyRow} from './county-reports';
 export {COUNTY_NAMES,FRESHNESS_MINUTES,METHODS,PARTIES,isCurrentGeneral,partySum,sourceStamp,validSplit,zeroParties};
 export type {PartySplit,StateSplit,StateReport,Method,Stamp};
-export const RECONCILIATION_VERSION='2026-10-24-method-v3-mobile';
+export const RECONCILIATION_VERSION='2026-10-25-method-v4-timestamp';
 export type CountyMethod={total:number;parties:PartySplit;unallocated:number;reported:string|null;sourceUrl:string;retained?:boolean;note?:string};
 export type TurnoutRow=LegacyRow&{methodReports?:Partial<Record<Method,CountyMethod|null>>;warnings?:string[];fetchedAt?:string;unallocated?:number};
 export type MethodReport=CountyMethod&{method:Method;source:'county'|'state';reported:string;activityThrough:string;stamp:Stamp|null;freshness:string;retained:boolean;note:string};
@@ -51,7 +51,21 @@ export function mergeCountyRows(previous:TurnoutRow[],incoming:TurnoutRow[],now=
  }
  return [...saved.values()].map(r=>({...r,stale:countyFreshness(r,now)!=='recent'}));
 }
-function select(county:MethodReport|null,state:MethodReport|null,warnings:string[]){if(!county)return state;if(!state)return county;if(!county.stamp){warnings.push('County timestamp unavailable; dated state report selected.');return state;}return county.stamp.day>state.activityThrough?county:state;}
+function select(county:MethodReport|null,state:MethodReport|null,warnings:string[]){
+ if(!county)return state;
+ if(!state)return county;
+ if(!county.stamp){warnings.push('County timestamp unavailable; dated state report selected.');return state;}
+ // Compare publication timestamps for overlapping county/method reports.
+ // The state's activity-through date is not its publication timestamp.
+ const order=stampOrder(county.stamp,state.stamp);
+ if(order>0)return county;
+ if(order<0)return state;
+ // When the timezone or reporting interval prevents a decisive comparison,
+ // retain the county only if it is on a strictly later Florida calendar day.
+ if(county.stamp.day>state.stamp!.day)return county;
+ warnings.push('County/state report timestamps overlap or are ambiguous; dated state benchmark retained for this method.');
+ return state;
+}
 const sumParties=(list:PartySplit[])=>list.reduce((a,r)=>{for(const p of PARTIES)a[p]+=r[p];return a;},zeroParties());
 export function reconcileTurnout(liveRows:TurnoutRow[],state:StateReport|null,now=Date.now()){
  const stateValid=!!state&&isCurrentGeneral(state.electionName,state.electionDate)&&(!state.electionNumber||state.electionNumber==='49894');
