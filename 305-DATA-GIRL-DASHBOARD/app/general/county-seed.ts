@@ -1,5 +1,5 @@
 import seed from '../../public/data/general-county-seed.json';
-import expected from '../../public/data/general-verified-update.json';
+import expected from '../../public/data/general-county-baseline.json';
 import {COUNTY_NAMES,makeCountyRow,validMethod,sourceStamp,type CountyMethod,type TurnoutRow} from './method-selection';
 export const SEED_CHECKED_AT=seed.checkedAt;
 export function countySeed():TurnoutRow[]{
@@ -13,7 +13,7 @@ export function countySeed():TurnoutRow[]{
    const method=(kind:'mail'|'early',reported:string,v:number[]):CountyMethod=>{
     if(v.length!==6||!sourceStamp(reported))throw new Error('Invalid baseline schema');
     const sourceUrl=code==='BRO'?`https://my.browardvotes.gov/TEDElectionLink/${kind==='mail'?'AbsenteeTurnOut/dashboard/view/absturnout-party':'TurnOutWidget/dashboard/view/turnout-party'}`:`https://tqv.vrswebapps.com/?state=FL&county=${code.toLowerCase()}`;
-    const report={total:v[5],parties:{dem:v[0],rep:v[1],npa:v[2],other:v[3]},unallocated:v[4],reported,sourceUrl,retained:true,note:'Saved verified county-method report from October 24 at 6:17 p.m. EDT. Original source date preserved; not a current retrieval.'};
+    const report={total:v[5],parties:{dem:v[0],rep:v[1],npa:v[2],other:v[3]},unallocated:v[4],reported,sourceUrl,retained:true,note:`Saved county-method baseline checked ${seed.checkedAt}. Original source date preserved; not a current retrieval.`};
     if(!validMethod(report))throw new Error('Baseline method fails reconciliation');v.forEach((n,i)=>totals[kind][i]+=n);return report;
    };
    return makeCountyRow(code,COUNTY_NAMES[code],{mail:method('mail',mailTime,mailValues),early:method('early',earlyTime,earlyValues),electionDay:null},{fetchedAt:seed.checkedAt});
