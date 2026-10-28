@@ -198,7 +198,7 @@ export default function DistrictsPage(){
       <div className={styles.cards}>
         <article><span>VBM sent / provided</span><strong>{statewide?number.format(statewide.sent):"—"}</strong><small>{statewide?number.format(statewide.provided)+" still outstanding":"Statewide package"}</small></article>
         <article><span>VBM returned</span><strong>{statewide?number.format(statewide.returned):"—"}</strong><small>{statewide&&statewide.sent?pct(statewide.returned/statewide.sent*100):"—"} statewide return rate</small></article>
-        <article><span>Early in-person ballots</span><strong>{statewide?number.format(statewide.early):"—"}</strong><small>Separate October 27 EVL archive</small></article>
+        <article><span>Early in-person ballots</span><strong>{statewide?number.format(statewide.early):"—"}</strong><small>Separate October 28 EVL archive</small></article>
         <article><span>Combined ballots cast</span><strong>{statewide?number.format(statewide.cast):"—"}</strong><small>Unique voters across mail and early</small></article>
       </div>
 
