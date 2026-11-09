@@ -9,7 +9,6 @@ import EarlyVotingLocations from './early-voting-locations';
 import RegistrationComparison from './registration-comparison';
 import ReportingNotice from './reporting-notice';
 import VerifiedUpdate from './verified-update';
-import ElectionAnalysis from './election-analysis';
 import stateBenchmark from '../../public/data/general-state-benchmark.json';
 import StatewideMargin from './statewide-margin';
 import snapshot from '../../public/data/general-official-snapshot.json';
@@ -73,8 +72,6 @@ export default function GeneralElection(){
   </section></details>
   <nav className={styles.tabs} aria-label='General Election data views'><button className={view==='turnout'?styles.activeTab:''} aria-pressed={view==='turnout'} onClick={()=>setView('turnout')}>Live County Turnout</button><button className={view==='state'?styles.activeTab:''} aria-pressed={view==='state'} onClick={()=>setView('state')}>State VBM + Early Voting</button></nav>
   <section className={styles.content}>
-   <ElectionAnalysis/>
-   {stateCoverageNote&&<div className={styles.error} role='status'><b>Reporting coverage:</b> {stateCoverageNote}</div>}
    {stateError&&<div className={styles.error}><b>State-source limitation:</b> {stateError}</div>}
    {turnoutError&&view==='turnout'&&<div className={styles.error}><b>County-source limitation:</b> {turnoutError}</div>}
    {view==='turnout'?<>
