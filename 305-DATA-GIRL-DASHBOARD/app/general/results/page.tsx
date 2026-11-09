@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import styles from '../general.module.css';
 import Results, { type Snapshot } from './results';
 
-export const metadata: Metadata = { title: 'Election Results | 305 Data Girl' };
+export const metadata: Metadata = { title: '2026 Election Results | 305 Data Girl' };
 
 export default async function ResultsPage() {
   let snapshot: Snapshot | null = null;
@@ -22,7 +22,7 @@ export default async function ResultsPage() {
     <header className={styles.hero}>
       <div className={styles.brand}><img src="/vanessa-brito.jpg" alt="Dr. Vanessa Brito"/><div><strong><b>305</b> Data Girl</strong><span>Florida Politics with Receipts</span></div></div>
       <div className={styles.eyebrow}><i/> NOVEMBER 3, 2026 · FLORIDA GENERAL ELECTION</div>
-      <h1>Election Results</h1>
+      <h1>2026 Election Results</h1>
       <p className={styles.dek}>Explore Florida’s federal, state and local races by county.</p>
     </header>
     <div className={styles.content}>
