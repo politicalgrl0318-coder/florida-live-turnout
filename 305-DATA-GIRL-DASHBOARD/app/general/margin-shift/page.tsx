@@ -52,8 +52,12 @@ function shift(row: District, baseline: Baseline) {
 function color(value: number | null) {
   if (value === null) return "#50546c";
   if (Math.abs(value) < 0.005) return "#f0e9f8";
-  const light = 80 - 33 * Math.min(Math.abs(value) / 25, 1);
-  return `hsl(${value > 0 ? 214 : 353} 85% ${light}%)`;
+  const [light, dark] = value > 0
+    ? [[186, 215, 255], [38, 59, 89]]
+    : [[255, 192, 206], [81, 46, 64]];
+  const strength = Math.min(Math.abs(value) / 25, 1) * 0.75;
+  const channels = light.map((channel, index) => Math.round(channel + (dark[index] - channel) * strength));
+  return `rgb(${channels.join(", ")})`;
 }
 
 function normalize(feature: Feature): Feature {
@@ -156,7 +160,7 @@ export default function MarginShift() {
         <section className={styles.card} aria-live="polite">
           <p className={styles.eyebrow}>{chambers[chamber]}</p>
           <h2>District {selected}</h2>
-          <strong className={styles.result} style={{ color: result === null ? undefined : color(result) }}>{label(result, " pts")}</strong>
+          <strong className={styles.result} style={{ color: result === null || Math.abs(result) < 0.005 ? undefined : result > 0 ? "#bad7ff" : "#ffc0ce" }}>{label(result, " pts")}</strong>
           <p className={styles.muted}>Shift in two-party margin</p>
           <dl>
             <dt>{baseName}</dt><dd>{label(margin(district[baseline]))}</dd>
