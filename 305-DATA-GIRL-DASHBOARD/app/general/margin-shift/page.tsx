@@ -218,6 +218,26 @@ export default function MarginShift() {
         </div>
         {!ranked.length && <p>No comparable districts for this baseline.</p>}
       </section>
+      {chamber === "congressional" && baseline === "president" && (
+        <section className={styles.card} aria-labelledby="published-baseline-comparison" style={{ marginBottom: 16 }}>
+          <h2 id="published-baseline-comparison">FL-28 vs. FL-9 using earlier published baselines</h2>
+          <p className={styles.muted}>This comparison pairs the current unofficial House returns with the earlier published 2024 margins, which were rounded to one decimal. The statewide ranking above uses a consistent two-party baseline.</p>
+          <ol>
+            {[
+              { id: "28", baseline: -25.6, source: "https://www.poliwave.com/us/live/midterms-2026/house/florida-28" },
+              { id: "9", baseline: -17.7, source: "https://floridaphoenix.com/2026/08/07/a-redder-congressional-district-turns-out-a-packed-field-vying-to-challenge-darren-soto/" },
+            ].flatMap(item => {
+              const current = margin(districts[item.id].current);
+              return current === null || districts[item.id].status ? [] : [{ ...item, change: current - item.baseline }];
+            }).sort((a, b) => b.change - a.change).map(item => (
+              <li key={item.id} className={styles.links}>
+                <strong>FL-{item.id} · {label(item.change, " pts")}</strong>{" "}
+                <a href={item.source}>(2024 baseline {label(item.baseline)})</a>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
       <section className={styles.card}>
         <h2>How the shift is calculated</h2>
         <p>Each margin is Democratic votes minus Republican votes, divided by their combined votes. The shift is the 2026 margin minus the selected baseline, in percentage points. Darker colors show larger shifts.</p>
