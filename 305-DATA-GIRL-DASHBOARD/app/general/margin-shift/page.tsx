@@ -26,6 +26,7 @@ type District = {
   midterm: number[] | null;
   priorYear: number;
   status: string;
+  returnsSource?: string;
 };
 type Feature = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, { DISTRICT: number }>;
 type Boundaries = GeoJSON.FeatureCollection<Feature["geometry"], Feature["properties"]>;
@@ -159,6 +160,7 @@ export default function MarginShift() {
             <dt>2026 district race</dt><dd>{label(margin(district.current))}</dd>
           </dl>
           {district.current && <p className={styles.muted}>2026 votes · {votes.format(district.current[0])} Democratic · {votes.format(district.current[1])} Republican</p>}
+          {district.returnsSource && <p className={styles.links}><a href={district.returnsSource}>Florida Election Watch county totals</a> · First unofficial returns</p>}
           {district.status && <p>{district.status}.</p>}
           {!district[baseline] && <p>No two-party result available for this baseline.</p>}
           {chamber === "congressional" && baseline !== "president" && <p className={styles.note}>Same district number across different congressional plans. Boundary changes can contribute to the shift.</p>}
@@ -167,7 +169,7 @@ export default function MarginShift() {
       <section className={styles.card}>
         <h2>How the shift is calculated</h2>
         <p>Each margin is Democratic votes minus Republican votes, divided by their combined votes. The shift is the 2026 margin minus the selected baseline, in percentage points. Darker colors show larger shifts.</p>
-        <p>The presidential baseline uses estimates of 2024 presidential votes on the district boundaries used in 2026. For the previous general election option, the map uses 2024 where the seat had a general election and 2022 otherwise. The 2026 results are an unofficial November 8 snapshot. Races with partial precinct reporting or without both major parties are excluded from the shift.</p>
+        <p>The presidential baseline uses estimates of 2024 presidential votes on the district boundaries used in 2026. For the previous general election option, the map uses 2024 where the seat had a general election and 2022 otherwise. The 2026 results use an unofficial November 8 snapshot, supplemented for six districts with Florida Election Watch’s first unofficial returns after checking each county’s reporting. Races with partial precinct reporting or without both major parties are excluded from the shift.</p>
         <p className={styles.links}><a href="https://danieljchapman.github.io/fl/">Florida results exports</a> · <a href="https://floridaelectionwatch.gov/Downloads">Florida Election Watch</a> · <a href="https://github.com/ElectIndex/26_us_forecast_data">Presidential estimates</a> · <a href="https://www.flsenate.gov/Session/Redistricting">District boundaries</a></p>
         <p className={styles.eyebrow}>VANESSA BRITO · 305 DATA GIRL</p>
       </section>
