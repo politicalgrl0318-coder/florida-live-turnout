@@ -53,9 +53,9 @@ function color(value: number | null) {
   if (value === null) return "#50546c";
   if (Math.abs(value) < 0.005) return "#f0ede6";
   const [light, dark] = value > 0
-    ? [[186, 215, 255], [38, 59, 89]]
-    : [[255, 192, 206], [81, 46, 64]];
-  const strength = Math.min(Math.abs(value) / 25, 1) * 0.75;
+    ? [[189, 225, 255], [0, 104, 240]]
+    : [[255, 205, 201], [229, 38, 46]];
+  const strength = Math.min(Math.abs(value) / 25, 1);
   const channels = light.map((channel, index) => Math.round(channel + (dark[index] - channel) * strength));
   return `rgb(${channels.join(", ")})`;
 }
@@ -160,7 +160,7 @@ export default function MarginShift() {
         <section className={styles.card} aria-live="polite">
           <p className={styles.eyebrow}>{chambers[chamber]}</p>
           <h2>District {selected}</h2>
-          <strong className={styles.result} style={{ color: result === null || Math.abs(result) < 0.005 ? undefined : result > 0 ? "#214778" : "#802d4a" }}>{label(result, " pts")}</strong>
+          <strong className={styles.result} style={{ color: result === null || Math.abs(result) < 0.005 ? undefined : result > 0 ? "#075ac4" : "#bd202e" }}>{label(result, " pts")}</strong>
           <p className={styles.muted}>Shift in two-party margin</p>
           <dl>
             <dt>{baseName}</dt><dd>{label(margin(district[baseline]))}</dd>
@@ -200,8 +200,8 @@ export default function MarginShift() {
                   <td style={{ padding: "8px 10px" }}>
                     <span style={{
                       display: "inline-block", padding: "3px 8px", borderRadius: 6, fontWeight: 700,
-                      color: Math.abs(change) < 0.005 ? "#41505f" : change > 0 ? "#214778" : "#802d4a",
-                      background: Math.abs(change) < 0.005 ? "#eeeae2" : change > 0 ? "#dceaff" : "#f8dce7",
+                      color: Math.abs(change) < 0.005 ? "#41505f" : change > 0 ? "#075ac4" : "#bd202e",
+                      background: Math.abs(change) < 0.005 ? "#eeeae2" : change > 0 ? "#dceaff" : "#ffe3e1",
                     }}>{label(change, " pts")}</span>
                   </td>
                 </tr>
