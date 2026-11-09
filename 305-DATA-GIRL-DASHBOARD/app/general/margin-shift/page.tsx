@@ -98,7 +98,7 @@ export default function MarginShift() {
   const paths = useMemo(() => {
     if (!map) return [];
     const project = geoPath(geoMercator().fitExtent([[12, 12], [708, 572]], map));
-    return map.features.map(feature => ({ id: String(Number(feature.properties.DISTRICT)), path: project(feature) ?? "" }));
+    return map.features.map(feature => ({ id: String(Number(feature.properties.DISTRICT)), path: project(feature) ?? "", center: project.centroid(feature) }));
   }, [map]);
 
   const districts: Record<string, District> = data[chamber];
@@ -154,6 +154,13 @@ export default function MarginShift() {
                   }
                 }}><title>{text}</title></path>;
             })}
+            <g aria-hidden="true" pointerEvents="none" textAnchor="middle" dominantBaseline="central"
+              fill="#14263a" stroke="#fffdf8" strokeWidth={2.5} strokeLinejoin="round" paintOrder="stroke"
+              fontWeight={800} fontSize={chamber === "house" ? 10 : 13}>
+              {paths.map(({ id, center: [x, y] }) => Number.isFinite(x) && Number.isFinite(y) && districts[id] &&
+                <text key={id} x={x} y={y}>{id}</text>
+              )}
+            </g>
           </svg> : <p role="status">{failed === chamber ? "Map unavailable. Use the district selector to view results." : "Loading district boundaries…"}</p>}
           <p className={styles.muted}>{ranked.length} of {Object.keys(districts).length} districts have comparable results for this baseline.</p>
         </section>
