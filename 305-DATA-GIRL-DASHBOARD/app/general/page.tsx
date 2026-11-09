@@ -9,6 +9,8 @@ import EarlyVotingLocations from './early-voting-locations';
 import RegistrationComparison from './registration-comparison';
 import ReportingNotice from './reporting-notice';
 import VerifiedUpdate from './verified-update';
+import ElectionAnalysis from './election-analysis';
+import stateBenchmark from '../../public/data/general-state-benchmark.json';
 import StatewideMargin from './statewide-margin';
 import snapshot from '../../public/data/general-official-snapshot.json';
 type CountyRow={code:string;name:string;sourceUrl:string;earlyVoting:string;provided:StateSplit;voted:StateSplit;early:StateSplit;changeReturned?:number};
@@ -25,7 +27,7 @@ function validState(p:Payload){
 }
 export default function GeneralElection(){
  const [view,setView]=useState<'turnout'|'state'>('turnout');
- const [data,setData]=useState<Payload|null>(validState(snapshot as Payload)?snapshot as Payload:null);
+ const [data,setData]=useState<Payload|null>(validState(stateBenchmark as Payload)?stateBenchmark as Payload:null);
  const [turnoutData,setTurnoutData]=useState<TurnoutRow[]>(()=>countySeed());
  const [loading,setLoading]=useState(true),[stateError,setStateError]=useState(''),[turnoutError,setTurnoutError]=useState('');
  const [checkedAt,setCheckedAt]=useState<string|null>(null),[now,setNow]=useState(Date.parse(SEED_CHECKED_AT));
@@ -71,6 +73,7 @@ export default function GeneralElection(){
   </section></details>
   <nav className={styles.tabs} aria-label='General Election data views'><button className={view==='turnout'?styles.activeTab:''} aria-pressed={view==='turnout'} onClick={()=>setView('turnout')}>Live County Turnout</button><button className={view==='state'?styles.activeTab:''} aria-pressed={view==='state'} onClick={()=>setView('state')}>State VBM + Early Voting</button></nav>
   <section className={styles.content}>
+   <ElectionAnalysis/>
    {stateCoverageNote&&<div className={styles.error} role='status'><b>Reporting coverage:</b> {stateCoverageNote}</div>}
    {stateError&&<div className={styles.error}><b>State-source limitation:</b> {stateError}</div>}
    {turnoutError&&view==='turnout'&&<div className={styles.error}><b>County-source limitation:</b> {turnoutError}</div>}
