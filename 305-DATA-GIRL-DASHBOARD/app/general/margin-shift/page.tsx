@@ -173,12 +173,12 @@ export default function MarginShift() {
           {chamber === "congressional" && baseline !== "president" && <p className={styles.note}>Same district number across different congressional plans. Boundary changes can contribute to the shift.</p>}
         </section>
       </div>
-      <section className={styles.card} aria-labelledby="shift-ranking" style={{ marginBottom: 16 }}>
+      <section className={styles.card} aria-labelledby="shift-ranking" style={{ marginBottom: 16, background: "#f8f5fc", color: "#261d37", borderColor: "#ded3ea" }}>
         <h2 id="shift-ranking">Districts ranked by Democratic shift</h2>
-        <p className={styles.muted}>{chambers[chamber]} · {baselines[baseline]} · {ranked.length} comparable districts</p>
+        <p style={{ color: "#574863" }}>{chambers[chamber]} · {baselines[baseline]} · {ranked.length} comparable districts</p>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", minWidth: 480, color: "#f0ebf6", borderCollapse: "collapse", textAlign: "left" }}>
-            <thead style={{ background: "#161322", color: "#cdc3d9" }}>
+          <table style={{ width: "100%", minWidth: 480, color: "#261d37", borderCollapse: "collapse", textAlign: "left" }}>
+            <thead style={{ background: "#eee6f6", color: "#493858" }}>
               <tr>
                 {["Rank", "District", "Baseline margin", "2026 margin", "Shift"].map(heading =>
                   <th key={heading} scope="col" style={{ padding: "8px 10px" }}>{heading}</th>
@@ -187,11 +187,11 @@ export default function MarginShift() {
             </thead>
             <tbody>
               {ranked.map(({ id, row, change }, index) => (
-                <tr key={id} style={{ borderTop: "1px solid #3c334a", background: id === selected ? "#34314b" : index % 2 ? "#262033" : "#211b2d" }}>
+                <tr key={id} style={{ borderTop: "1px solid #ded3ea", background: id === selected ? "#e6ddf4" : index % 2 ? "#f3edf8" : "#fcfaff" }}>
                   <td style={{ padding: "8px 10px" }}>{index + 1}</td>
-                  <th scope="row" style={{ padding: "8px 10px" }}>
+                  <th scope="row" style={{ padding: "8px 10px", background: "inherit", textTransform: "none", letterSpacing: "normal", fontSize: "inherit" }}>
                     <button type="button" aria-pressed={id === selected} onClick={() => setSelected(id)}
-                      style={{ background: "transparent", color: id === selected ? "#e6dcff" : "#f0ebf6", border: 0, padding: "5px 0", cursor: "pointer", textDecoration: "underline", font: "inherit" }}>
+                      style={{ background: "transparent", color: "#352054", border: 0, padding: "5px 0", cursor: "pointer", textDecoration: "underline", font: "inherit" }}>
                       District {id}
                     </button>
                   </th>
@@ -200,8 +200,8 @@ export default function MarginShift() {
                   <td style={{ padding: "8px 10px" }}>
                     <span style={{
                       display: "inline-block", padding: "3px 8px", borderRadius: 6, fontWeight: 700,
-                      color: Math.abs(change) < 0.005 ? "#ded5e8" : change > 0 ? "#bad7ff" : "#ffc0ce",
-                      background: Math.abs(change) < 0.005 ? "#40374d" : change > 0 ? "#263b59" : "#512e40",
+                      color: Math.abs(change) < 0.005 ? "#44344f" : change > 0 ? "#214778" : "#802d4a",
+                      background: Math.abs(change) < 0.005 ? "#e9e0ef" : change > 0 ? "#dceaff" : "#f8dce7",
                     }}>{label(change, " pts")}</span>
                   </td>
                 </tr>
