@@ -100,7 +100,10 @@ export default function MarginShift() {
   const districts: Record<string, District> = data[chamber];
   const district = districts[selected];
   const result = shift(district, baseline);
-  const comparable = Object.values(districts).filter(row => shift(row, baseline) !== null).length;
+  const ranked = Object.entries(districts).flatMap(([id, row]) => {
+    const change = shift(row, baseline);
+    return change === null ? [] : [{ id, row, change }];
+  }).sort((a, b) => b.change - a.change || Number(a.id) - Number(b.id));
   const baseName = baseline === "prior" ? `${district.priorYear} general election` : baselines[baseline];
 
   return (
@@ -148,7 +151,7 @@ export default function MarginShift() {
                 }}><title>{text}</title></path>;
             })}
           </svg> : <p role="status">{failed === chamber ? "Map unavailable. Use the district selector to view results." : "Loading district boundaries…"}</p>}
-          <p className={styles.muted}>{comparable} of {Object.keys(districts).length} districts have comparable results for this baseline.</p>
+          <p className={styles.muted}>{ranked.length} of {Object.keys(districts).length} districts have comparable results for this baseline.</p>
         </section>
         <section className={styles.card} aria-live="polite">
           <p className={styles.eyebrow}>{chambers[chamber]}</p>
@@ -166,6 +169,38 @@ export default function MarginShift() {
           {chamber === "congressional" && baseline !== "president" && <p className={styles.note}>Same district number across different congressional plans. Boundary changes can contribute to the shift.</p>}
         </section>
       </div>
+      <section className={styles.card} aria-labelledby="shift-ranking" style={{ marginBottom: 16 }}>
+        <h2 id="shift-ranking">Districts ranked by Democratic shift</h2>
+        <p className={styles.muted}>{chambers[chamber]} · {baselines[baseline]} · {ranked.length} comparable districts</p>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", textAlign: "left" }}>
+            <thead>
+              <tr>
+                {["Rank", "District", "Baseline margin", "2026 margin", "Shift"].map(heading =>
+                  <th key={heading} scope="col" style={{ padding: "8px 10px" }}>{heading}</th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {ranked.map(({ id, row, change }, index) => (
+                <tr key={id} style={{ borderTop: "1px solid #5c466b", background: id === selected ? "#382847" : undefined }}>
+                  <td style={{ padding: "8px 10px" }}>{index + 1}</td>
+                  <th scope="row" style={{ padding: "8px 10px" }}>
+                    <button type="button" aria-pressed={id === selected} onClick={() => setSelected(id)}
+                      style={{ background: "transparent", color: "#68efdc", border: 0, padding: "5px 0", cursor: "pointer", textDecoration: "underline", font: "inherit" }}>
+                      District {id}
+                    </button>
+                  </th>
+                  <td style={{ padding: "8px 10px" }}>{label(margin(row[baseline]))}{baseline === "prior" && ` (${row.priorYear})`}</td>
+                  <td style={{ padding: "8px 10px" }}>{label(margin(row.current))}</td>
+                  <td style={{ padding: "8px 10px", fontWeight: 700 }}>{label(change, " pts")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!ranked.length && <p>No comparable districts for this baseline.</p>}
+      </section>
       <section className={styles.card}>
         <h2>How the shift is calculated</h2>
         <p>Each margin is Democratic votes minus Republican votes, divided by their combined votes. The shift is the 2026 margin minus the selected baseline, in percentage points. Darker colors show larger shifts.</p>
