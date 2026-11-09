@@ -33,6 +33,7 @@ const statewide: { title: string; candidates: [string, string, number][] }[] = [
 ];
 
 const number = new Intl.NumberFormat('en-US');
+const percent = new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const normalized = (value: string) => value.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[.'’"]/g, '').replace(/\s+/g, ' ').trim();
 const partyAffixes = /^(REP|DEM|NPA|LPF|WRI|NON|IND|FFP|GRE|PSL|ASP|CPF)\s+|\s*\((REP|DEM|NPA|LPF|WRI|NON|IND|FFP|GRE|PSL|ASP|CPF)\)$/gi;
 const house = (name: string) => /^(?:rep(?:resentative)?\.?\s+(?:in\s+)?congress|u\.?s\.?\s+(?:congress|representative)).*?\b(?:district|dist)\.?\s*0*(\d+)\b/i.exec(name);
@@ -83,6 +84,7 @@ function indexResults(rows: Candidate[]) {
 }
 
 function RaceCard({ race, expanded }: { race: Race; expanded: boolean }) {
+  const total = race.candidates.reduce((sum, candidate) => sum + candidate.votes, 0);
   const top = race.candidates[0]?.votes ?? 0;
   const hasLeader = top > 0 && top > (race.candidates[1]?.votes ?? -1);
   return <details className={styles.race} open={expanded || undefined}>
@@ -91,7 +93,7 @@ function RaceCard({ race, expanded }: { race: Race; expanded: boolean }) {
       const status = hasLeader && index === 0 ? 'Leading' : row.votes < top ? 'Trailing' : '';
       return <li key={row.name} className={status === 'Leading' ? styles.leading : status === 'Trailing' ? styles.trailing : undefined}>
         <span>{row.name}{row.party && <small className={row.party === 'DEM' ? styles.dem : row.party === 'REP' ? styles.rep : styles.other}>{row.party}</small>}</span>
-        <span><strong>{number.format(row.votes)}</strong>{status && <small className={styles.status}>{status}</small>}</span>
+        <span><strong style={{ display: 'block' }}>{total ? percent.format(row.votes / total) : '—'}</strong><small className={styles.status}>{number.format(row.votes)} votes</small></span>
       </li>;
     })}</ul>
   </details>;
@@ -128,7 +130,7 @@ export default function Results({ snapshot }: { snapshot: Snapshot }) {
       <label>County<select value={county} onChange={event => setCounty(event.target.value)}><option value="">All counties</option>{counties.map(item => <option key={item.county}>{item.county}</option>)}</select></label>
       <label>Race type<select value={scope} onChange={event => setScope(event.target.value)}><option value="all">All races</option><option value="federal">Federal races</option><option value="other">State and local races</option></select></label>
     </div>
-    <p className={styles.note}>Unofficial county snapshot collected {date} ET. Leading and trailing labels refer to the county results shown. <a href="https://floridaelectionwatch.gov/FederalOffices">Official districtwide and statewide federal totals ↗</a></p>
+    <p className={styles.note}>Unofficial county snapshot collected {date} ET. Vote shares use the candidate totals shown for each county race. <a href="https://floridaelectionwatch.gov/FederalOffices">Official districtwide and statewide federal totals ↗</a></p>
     <div className={styles.grid}>{cards.map(item => <article key={item.county} className={styles.card}>
       <header><div><h2>{item.county}</h2><p>{item.races.length ? `${item.races.length} races` : 'Candidate totals unavailable in this snapshot'}</p></div><a href={item.url}>County results ↗</a></header>
       {item.races.map(race => <RaceCard key={race.title} race={race} expanded={Boolean(county || search || scope !== 'all')}/>)}
