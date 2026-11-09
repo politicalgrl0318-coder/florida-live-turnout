@@ -8,6 +8,30 @@ type County = { county: string; url: string };
 export type Snapshot = { election: string; collected: string; counties: County[]; rows: Candidate[] };
 type Race = { title: string; candidates: Candidate[] };
 
+// Florida Election Watch, November 3 general election, first unofficial returns.
+const statewide: { title: string; candidates: [string, string, number][] }[] = [
+  { title: 'U.S. Senate', candidates: [
+    ['Ashley Moody', 'REP', 4211455], ['Angie Nixon', 'DEM', 3974148], ['Neil J. Gillespie', 'NPA', 94665],
+  ] },
+  { title: 'Governor & Lieutenant Governor', candidates: [
+    ['Byron Donalds & Bryan Avila', 'REP', 4135701], ['David Jolly & Gwen Graham', 'DEM', 4029461],
+    ['Scott Eckhard Jewett & Nicole Skelly', 'LPF', 37939], ['Frank J. Russo & Rachel Rodriguez', 'NPA', 23240],
+    ['Charles Burkett & Ruben A. Coto', 'NPA', 15259], ['Dean Ocean Abrams & Joe Van Vactor', 'NPA', 12564],
+    ['Jeffrey Peter “Dr. Jeff” Datto & Juan Santana', 'NPA', 8331],
+    ['Moliere “Moe” Dimanche & Benjiman Rojas', 'NPA', 7606], ['Erik Morris & LeRoy Alaways', 'WRI', 102],
+    ['Kathy Anderson & Daniel Nokovich', 'WRI', 21],
+  ] },
+  { title: 'Attorney General', candidates: [
+    ['James Uthmeier', 'REP', 4181313], ['Jose Javier Rodriguez', 'DEM', 4029436],
+  ] },
+  { title: 'Chief Financial Officer', candidates: [
+    ['Blaise Ingoglia', 'REP', 4154951], ['Annette Taddeo', 'DEM', 4002789],
+  ] },
+  { title: 'Commissioner of Agriculture', candidates: [
+    ['Wilton Simpson', 'REP', 4163970], ['Joey Mendoza Atkins', 'DEM', 3989468], ['Kyle “KC” Gibson', 'WRI', 791],
+  ] },
+];
+
 const number = new Intl.NumberFormat('en-US');
 const normalized = (value: string) => value.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[.'’"]/g, '').replace(/\s+/g, ' ').trim();
 const partyAffixes = /^(REP|DEM|NPA|LPF|WRI|NON|IND|FFP|GRE|PSL|ASP|CPF)\s+|\s*\((REP|DEM|NPA|LPF|WRI|NON|IND|FFP|GRE|PSL|ASP|CPF)\)$/gi;
@@ -89,6 +113,16 @@ export default function Results({ snapshot }: { snapshot: Snapshot }) {
   })).filter(item => item.races.length || (!search && scope === 'all'));
   const date = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/New_York' }).format(new Date(snapshot.collected));
   return <>
+    <section aria-labelledby="statewide-results-heading">
+      <h2 id="statewide-results-heading">Statewide Races</h2>
+      <p className={styles.note}>Florida’s first unofficial returns. <a href="https://floridaelectionwatch.gov/FederalOffices">U.S. Senate source</a> · <a href="https://floridaelectionwatch.gov/StateOffices/">State offices source</a></p>
+      <div className={styles.grid}>{statewide.map(({ title, candidates }) =>
+        <article key={title} className={styles.card}>
+          <RaceCard expanded race={{ title, candidates: candidates.map(([name, party, votes]) => ({ name, party, votes, county: 'Statewide', contest: title })) }}/>
+        </article>
+      )}</div>
+    </section>
+    <h2 id="county-results-heading">County Results</h2>
     <div className={styles.tools}>
       <label>Search<input type="search" placeholder="Candidate, race or county" value={query} onChange={event => setQuery(event.target.value)}/></label>
       <label>County<select value={county} onChange={event => setCounty(event.target.value)}><option value="">All counties</option>{counties.map(item => <option key={item.county}>{item.county}</option>)}</select></label>
