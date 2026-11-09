@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import snapshot from "../../../public/data/general-official-snapshot.json";
+import snapshot from "../../../public/data/general-state-benchmark.json";
 
 const STATS_URL = "https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats";
 const REPORTS_URL = "https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicReports";
@@ -99,7 +99,7 @@ export async function GET(){
       counties:rows
     },{headers:{"Cache-Control":"public, max-age=60, s-maxage=180, stale-while-revalidate=300"}});
   }catch(error){
-    return NextResponse.json({...snapshot, savedSnapshot:true, reportingNote:`Showing the verified ${snapshot.compiled} ET compilation while the live state source is unavailable.`},{headers:{"Cache-Control":"no-store"}});
+    return NextResponse.json(snapshot,{headers:{"Cache-Control":"no-store"}});
   }
 }
 
