@@ -51,7 +51,7 @@ function shift(row: District, baseline: Baseline) {
 
 function color(value: number | null) {
   if (value === null) return "#50546c";
-  if (Math.abs(value) < 0.005) return "#f0e9f8";
+  if (Math.abs(value) < 0.005) return "#f0ede6";
   const [light, dark] = value > 0
     ? [[186, 215, 255], [38, 59, 89]]
     : [[255, 192, 206], [81, 46, 64]];
@@ -160,7 +160,7 @@ export default function MarginShift() {
         <section className={styles.card} aria-live="polite">
           <p className={styles.eyebrow}>{chambers[chamber]}</p>
           <h2>District {selected}</h2>
-          <strong className={styles.result} style={{ color: result === null || Math.abs(result) < 0.005 ? undefined : result > 0 ? "#bad7ff" : "#ffc0ce" }}>{label(result, " pts")}</strong>
+          <strong className={styles.result} style={{ color: result === null || Math.abs(result) < 0.005 ? undefined : result > 0 ? "#214778" : "#802d4a" }}>{label(result, " pts")}</strong>
           <p className={styles.muted}>Shift in two-party margin</p>
           <dl>
             <dt>{baseName}</dt><dd>{label(margin(district[baseline]))}</dd>
@@ -173,12 +173,12 @@ export default function MarginShift() {
           {chamber === "congressional" && baseline !== "president" && <p className={styles.note}>Same district number across different congressional plans. Boundary changes can contribute to the shift.</p>}
         </section>
       </div>
-      <section className={styles.card} aria-labelledby="shift-ranking" style={{ marginBottom: 16, background: "#f8f5fc", color: "#261d37", borderColor: "#ded3ea" }}>
+      <section className={styles.card} aria-labelledby="shift-ranking" style={{ marginBottom: 16, background: "#fffdf8", color: "#183047", borderColor: "#ded9cf" }}>
         <h2 id="shift-ranking">Districts ranked by Democratic shift</h2>
-        <p style={{ color: "#574863" }}>{chambers[chamber]} · {baselines[baseline]} · {ranked.length} comparable districts</p>
+        <p style={{ color: "#526071" }}>{chambers[chamber]} · {baselines[baseline]} · {ranked.length} comparable districts</p>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", minWidth: 480, color: "#261d37", borderCollapse: "collapse", textAlign: "left" }}>
-            <thead style={{ background: "#eee6f6", color: "#493858" }}>
+          <table style={{ width: "100%", minWidth: 480, color: "#183047", borderCollapse: "collapse", textAlign: "left" }}>
+            <thead style={{ background: "#f3ede1", color: "#33445a" }}>
               <tr>
                 {["Rank", "District", "Baseline margin", "2026 margin", "Shift"].map(heading =>
                   <th key={heading} scope="col" style={{ padding: "8px 10px" }}>{heading}</th>
@@ -187,11 +187,11 @@ export default function MarginShift() {
             </thead>
             <tbody>
               {ranked.map(({ id, row, change }, index) => (
-                <tr key={id} style={{ borderTop: "1px solid #ded3ea", background: id === selected ? "#e6ddf4" : index % 2 ? "#f3edf8" : "#fcfaff" }}>
+                <tr key={id} style={{ borderTop: "1px solid #ded9cf", background: id === selected ? "#e2f2f0" : index % 2 ? "#f9f5ec" : "#fffdf8" }}>
                   <td style={{ padding: "8px 10px" }}>{index + 1}</td>
                   <th scope="row" style={{ padding: "8px 10px", background: "inherit", textTransform: "none", letterSpacing: "normal", fontSize: "inherit" }}>
                     <button type="button" aria-pressed={id === selected} onClick={() => setSelected(id)}
-                      style={{ background: "transparent", color: "#352054", border: 0, padding: "5px 0", cursor: "pointer", textDecoration: "underline", font: "inherit" }}>
+                      style={{ background: "transparent", color: "#174866", border: 0, padding: "5px 0", cursor: "pointer", textDecoration: "underline", font: "inherit" }}>
                       District {id}
                     </button>
                   </th>
@@ -200,8 +200,8 @@ export default function MarginShift() {
                   <td style={{ padding: "8px 10px" }}>
                     <span style={{
                       display: "inline-block", padding: "3px 8px", borderRadius: 6, fontWeight: 700,
-                      color: Math.abs(change) < 0.005 ? "#44344f" : change > 0 ? "#214778" : "#802d4a",
-                      background: Math.abs(change) < 0.005 ? "#e9e0ef" : change > 0 ? "#dceaff" : "#f8dce7",
+                      color: Math.abs(change) < 0.005 ? "#41505f" : change > 0 ? "#214778" : "#802d4a",
+                      background: Math.abs(change) < 0.005 ? "#eeeae2" : change > 0 ? "#dceaff" : "#f8dce7",
                     }}>{label(change, " pts")}</span>
                   </td>
                 </tr>
