@@ -173,8 +173,8 @@ export default function MarginShift() {
         <h2 id="shift-ranking">Districts ranked by Democratic shift</h2>
         <p className={styles.muted}>{chambers[chamber]} · {baselines[baseline]} · {ranked.length} comparable districts</p>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", textAlign: "left" }}>
-            <thead>
+          <table style={{ width: "100%", minWidth: 480, color: "#f0ebf6", borderCollapse: "collapse", textAlign: "left" }}>
+            <thead style={{ background: "#161322", color: "#cdc3d9" }}>
               <tr>
                 {["Rank", "District", "Baseline margin", "2026 margin", "Shift"].map(heading =>
                   <th key={heading} scope="col" style={{ padding: "8px 10px" }}>{heading}</th>
@@ -183,17 +183,23 @@ export default function MarginShift() {
             </thead>
             <tbody>
               {ranked.map(({ id, row, change }, index) => (
-                <tr key={id} style={{ borderTop: "1px solid #5c466b", background: id === selected ? "#382847" : undefined }}>
+                <tr key={id} style={{ borderTop: "1px solid #3c334a", background: id === selected ? "#34314b" : index % 2 ? "#262033" : "#211b2d" }}>
                   <td style={{ padding: "8px 10px" }}>{index + 1}</td>
                   <th scope="row" style={{ padding: "8px 10px" }}>
                     <button type="button" aria-pressed={id === selected} onClick={() => setSelected(id)}
-                      style={{ background: "transparent", color: "#68efdc", border: 0, padding: "5px 0", cursor: "pointer", textDecoration: "underline", font: "inherit" }}>
+                      style={{ background: "transparent", color: id === selected ? "#e6dcff" : "#f0ebf6", border: 0, padding: "5px 0", cursor: "pointer", textDecoration: "underline", font: "inherit" }}>
                       District {id}
                     </button>
                   </th>
                   <td style={{ padding: "8px 10px" }}>{label(margin(row[baseline]))}{baseline === "prior" && ` (${row.priorYear})`}</td>
                   <td style={{ padding: "8px 10px" }}>{label(margin(row.current))}</td>
-                  <td style={{ padding: "8px 10px", fontWeight: 700 }}>{label(change, " pts")}</td>
+                  <td style={{ padding: "8px 10px" }}>
+                    <span style={{
+                      display: "inline-block", padding: "3px 8px", borderRadius: 6, fontWeight: 700,
+                      color: Math.abs(change) < 0.005 ? "#ded5e8" : change > 0 ? "#bad7ff" : "#ffc0ce",
+                      background: Math.abs(change) < 0.005 ? "#40374d" : change > 0 ? "#263b59" : "#512e40",
+                    }}>{label(change, " pts")}</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
