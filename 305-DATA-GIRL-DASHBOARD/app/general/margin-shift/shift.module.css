@@ -1,0 +1,31 @@
+.page {
+  background: radial-gradient(ellipse at 90% 0, #43214e, transparent 48%), #100e21;
+  color: #fff4ff;
+  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  padding: clamp(18px, 4vw, 56px) max(18px, calc((100vw - 1180px) / 2));
+  line-height: 1.5;
+}
+.page header { margin-bottom: 24px; }
+.page h1 { font-size: clamp(2rem, 5vw, 4rem); line-height: 1.05; margin: 10px 0; }
+.page h2 { margin: 6px 0; }
+.eyebrow { color: #68efdc; font-size: .78rem; font-weight: 800; letter-spacing: .14em; }
+.controls, .legend { display: flex; flex-wrap: wrap; gap: 14px; }
+.controls { margin-bottom: 18px; }
+.controls label { display: grid; gap: 5px; font-size: .86rem; font-weight: 700; }
+.controls select { background: #231b37; border: 1px solid #735a82; color: #fff4ff; border-radius: 8px; padding: 10px; min-height: 44px; max-width: 100%; }
+.grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: start; }
+.card { background: #211a32; border: 1px solid #5c466b; border-radius: 16px; padding: clamp(12px, 2vw, 24px); }
+.card svg { display: block; width: 100%; }
+.card path { stroke: #211a32; stroke-width: .8; cursor: pointer; }
+.card path:hover, .card path:focus-visible, .card path[data-selected="true"] { stroke: #6bffe3; stroke-width: 2.5; outline: none; }
+.legend { font-size: .78rem; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; }
+.result { display: block; font-size: clamp(1.8rem, 3.5vw, 3.2rem); line-height: 1.1; }
+.muted { color: #d1c5db; }
+.card dl { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px 0; border-block: 1px solid #5c466b; }
+.card dd { margin: 0; font-weight: 700; }
+.note { border-left: 3px solid #ff88bd; padding-left: 10px; }
+.links a { color: #68efdc; }
+@media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
